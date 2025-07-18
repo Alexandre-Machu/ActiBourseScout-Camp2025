@@ -39,6 +39,8 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeGame() {
+    console.log('🎯 Initialisation du jeu...');
+    
     // Initialiser les actions
     CONFIG.STOCKS.forEach(stock => {
         gameState.stocks[stock.id] = {
@@ -71,12 +73,20 @@ function initializeGame() {
     CONFIG.STOCKS.forEach(stock => {
         gameState.totalInvestments[stock.id] = 0;
     });
+    
+    console.log('✅ Jeu initialisé avec succès');
+    console.log('📊 Actions:', Object.keys(gameState.stocks));
+    console.log('👥 Équipes:', Object.keys(gameState.teams));
 }
 
 function setupEventListeners() {
     document.getElementById('startBtn').addEventListener('click', startGame);
     document.getElementById('pauseBtn').addEventListener('click', pauseGame);
     document.getElementById('resetBtn').addEventListener('click', resetGame);
+    document.getElementById('testUpdateBtn').addEventListener('click', function() {
+        console.log('🧪 Test de mise à jour manuelle déclenché');
+        updateStockPrices();
+    });
     document.getElementById('executeBtn').addEventListener('click', executeTransaction);
     document.getElementById('speedSlider').addEventListener('input', updateSpeedMode);
     
@@ -512,14 +522,17 @@ function updateSpeedMode() {
 }
 
 function scheduleNextUpdate() {
-    // Calculer un délai aléatoire entre 1h et 1h30
+    // Calculer un délai aléatoire entre 5min et 1h30
     const randomDelay = CONFIG.GAME_MIN_INTERVAL + 
         Math.random() * (CONFIG.GAME_MAX_INTERVAL - CONFIG.GAME_MIN_INTERVAL);
     
     gameState.nextUpdateTime = Date.now() + randomDelay;
     
+    console.log(`⏰ Prochaine mise à jour programmée dans ${Math.round(randomDelay/1000)} secondes`);
+    
     gameState.updateInterval = setTimeout(() => {
         if (gameState.isRunning) {
+            console.log('🎲 Déclenchement de la mise à jour programmée');
             updateStockPrices();
             scheduleNextUpdate(); // Programmer la prochaine mise à jour
         }
