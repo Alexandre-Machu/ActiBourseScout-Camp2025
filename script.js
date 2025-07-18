@@ -167,30 +167,18 @@ function startGameSimple() {
     document.getElementById('pauseBtn').disabled = false;
     document.getElementById('status').textContent = 'En cours';
     
-    // DÉMARRAGE DU SYSTÈME DE MISE À JOUR
+    // DÉMARRAGE DU SYSTÈME DE MISE À JOUR - VERSION SIMPLIFIÉE QUI MARCHE
     if (gameState.isTestMode) {
         console.log('⚡ CRÉATION DU SETINTERVAL POUR TEST');
         
-        // Créer l'interval avec une fonction nommée pour debug
-        gameState.updateInterval = setInterval(function automaticUpdate() {
+        // UTILISER LA MÊME LOGIQUE QUE DANS LA VERSION QUI MARCHE
+        gameState.updateInterval = setInterval(() => {
             console.log('🔄 INTERVAL AUTOMATIQUE DÉCLENCHÉ!');
             updateStockPrices();
         }, CONFIG.TEST_UPDATE_INTERVAL);
         
         console.log('📝 setInterval créé avec ID:', gameState.updateInterval);
         console.log('📝 Intervalle configuré pour:', CONFIG.TEST_UPDATE_INTERVAL, 'ms');
-        
-        // Vérification immédiate
-        setTimeout(() => {
-            console.log('🧪 VÉRIFICATION 3 SECONDES APRÈS DÉMARRAGE:');
-            console.log('- gameState.isRunning:', gameState.isRunning);
-            console.log('- gameState.updateInterval:', gameState.updateInterval);
-            console.log('- gameState.isTestMode:', gameState.isTestMode);
-            
-            if (!gameState.updateInterval) {
-                console.error('❌ PROBLÈME: updateInterval est null!');
-            }
-        }, 3000);
         
     } else {
         console.log('🎲 Mode jeu - programmation aléatoire');
