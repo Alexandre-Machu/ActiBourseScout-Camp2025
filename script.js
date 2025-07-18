@@ -85,6 +85,8 @@ function setupEventListeners() {
 }
 
 function startGame() {
+    console.log('🚀 Démarrage du jeu...'); // Debug
+    
     gameState.isRunning = true;
     gameState.startTime = Date.now();
     
@@ -94,8 +96,10 @@ function startGame() {
     
     // Démarrer les mises à jour selon le mode
     if (gameState.isTestMode) {
+        console.log(`⚡ Mode test activé - Intervalle: ${CONFIG.TEST_UPDATE_INTERVAL}ms`);
         gameState.updateInterval = setInterval(updateStockPrices, CONFIG.TEST_UPDATE_INTERVAL);
     } else {
+        console.log('🎲 Mode jeu activé - Programmation aléatoire');
         scheduleNextUpdate();
     }
     
@@ -105,6 +109,7 @@ function startGame() {
     
     const modeText = gameState.isTestMode ? 'mode test' : 'mode jeu';
     addToHistory(`🚀 Activité démarrée en ${modeText}`, 'system');
+    console.log('✅ Jeu démarré avec succès');
 }
 
 function pauseGame() {
@@ -148,12 +153,14 @@ function resetGame() {
 }
 
 function updateStockPrices() {
+    console.log('🔄 Mise à jour des cours déclenchée !'); // Debug
+    
     Object.keys(gameState.stocks).forEach(stockId => {
         const stock = gameState.stocks[stockId];
         stock.previousPrice = stock.price;
         
         // Calculer l'influence des investissements (plus d'investissements = tendance à la baisse)
-        const totalInvested = gameState.totalInvestments[stockId];
+        const totalInvested = gameState.totalInvestments[stockId] || 0;
         const investmentInfluence = Math.min(totalInvested / 50, 0.15); // Max -15% d'influence
         
         // Générer une variation de base plus importante (-20% à +20%)
@@ -167,12 +174,15 @@ function updateStockPrices() {
         stock.price = Math.round(newPrice * 100) / 100; // Arrondir à 2 décimales
         stock.change = stock.price - stock.previousPrice;
         stock.changePercent = (stock.change / stock.previousPrice) * 100;
+        
+        console.log(`${stock.name}: ${stock.previousPrice.toFixed(2)} → ${stock.price.toFixed(2)} (${stock.changePercent.toFixed(1)}%)`);
     });
     
     updateDisplay();
     
     const modeText = gameState.isTestMode ? 'test' : 'jeu';
     addToHistory(`📊 Cours mis à jour (mode ${modeText})`, 'system');
+    console.log('✅ Mise à jour terminée');
 }
 
 function updateTimer() {
@@ -471,18 +481,31 @@ function updateSpeedMode() {
     
     gameState.isTestMode = slider.value === '1';
     
+    console.log(`🔧 Mode changé: ${gameState.isTestMode ? 'Test' : 'Jeu'} (slider value: ${slider.value})`);
+    
     if (gameState.isTestMode) {
         display.textContent = 'Mode Test - Variations toutes les 10 secondes';
     } else {
-        display.textContent = 'Mode Jeu - Variations aléatoires (1h à 1h30)';
+        display.textContent = 'Mode Jeu - Variations aléatoires (5min à 1h30)';
     }
     
     // Si le jeu est en cours, redémarrer avec le nouveau mode
     if (gameState.isRunning) {
-        clearInterval(gameState.updateInterval);
+        console.log('🔄 Redémarrage du système de mise à jour...');
+        
+        // Arrêter l'ancien système
+        if (gameState.updateInterval) {
+            clearInterval(gameState.updateInterval);
+            clearTimeout(gameState.updateInterval);
+            gameState.updateInterval = null;
+        }
+        
+        // Démarrer le nouveau système
         if (gameState.isTestMode) {
+            console.log(`⚡ Relancement en mode test - Intervalle: ${CONFIG.TEST_UPDATE_INTERVAL}ms`);
             gameState.updateInterval = setInterval(updateStockPrices, CONFIG.TEST_UPDATE_INTERVAL);
         } else {
+            console.log('🎲 Relancement en mode jeu');
             scheduleNextUpdate();
         }
     }
