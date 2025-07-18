@@ -204,58 +204,7 @@ function startGameSimple() {
     console.log('✅ DÉMARRAGE TERMINÉ');
 }
 
-function startGame() {
-    console.log('🚀 Démarrage du jeu...'); 
-    
-    // Vérifier et forcer la lecture du mode depuis le slider
-    const slider = document.getElementById('speedSlider');
-    gameState.isTestMode = slider.value === '1';
-    console.log(`🎯 Mode détecté: ${gameState.isTestMode ? 'Test' : 'Jeu'} (slider: ${slider.value})`);
-    
-    gameState.isRunning = true;
-    gameState.startTime = Date.now();
-    
-    document.getElementById('startBtn').disabled = true;
-    document.getElementById('pauseBtn').disabled = false;
-    document.getElementById('status').textContent = 'En cours';
-    
-    // Nettoyer tout interval/timeout existant
-    if (gameState.updateInterval) {
-        console.log('🧹 Nettoyage des anciens intervals...');
-        clearInterval(gameState.updateInterval);
-        clearTimeout(gameState.updateInterval);
-        gameState.updateInterval = null;
-    }
-    
-    // Démarrer les mises à jour selon le mode
-    if (gameState.isTestMode) {
-        console.log(`⚡ Mode test activé - Intervalle: ${CONFIG.TEST_UPDATE_INTERVAL}ms`);
-        gameState.updateInterval = setInterval(() => {
-            console.log('⏰ Interval déclenché');
-            updateStockPrices();
-        }, CONFIG.TEST_UPDATE_INTERVAL);
-        console.log('📝 setInterval créé avec ID:', gameState.updateInterval);
-    } else {
-        console.log('🎲 Mode jeu activé - Programmation aléatoire');
-        scheduleNextUpdate();
-    }
-    
-    // Démarrer le timer
-    updateTimer();
-    gameState.timerInterval = setInterval(updateTimer, 1000);
-    
-    const modeText = gameState.isTestMode ? 'mode test' : 'mode jeu';
-    addToHistory(`🚀 Activité démarrée en ${modeText}`, 'system');
-    console.log('✅ Jeu démarré avec succès');
-    
-    // Test immédiat pour vérifier que tout fonctionne
-    setTimeout(() => {
-        console.log('🧪 Test immédiat après démarrage...');
-        console.log('- isRunning:', gameState.isRunning);
-        console.log('- updateInterval:', gameState.updateInterval);
-        console.log('- isTestMode:', gameState.isTestMode);
-    }, 1000);
-}
+// FONCTION startGame() SUPPRIMÉE - utilisez startGameSimple() à la place
 
 function pauseGame() {
     gameState.isRunning = false;
@@ -287,7 +236,7 @@ function resetGame() {
     }
     
     // Réinitialiser complètement
-    initializeGame();
+    initializeGameSimple();
     updateDisplay();
     
     document.getElementById('startBtn').disabled = false;
@@ -661,130 +610,9 @@ window.forceRestart = function() {
     console.log('✅ Nettoyage terminé - vous pouvez redémarrer');
 };
 
-// Sauvegarder automatiquement toutes les 30 secondes
+// SUPPRESSION DE TOUT LE SYSTÈME DE CHARGEMENT COMPLEXE
+// Gardons seulement la sauvegarde automatique simple
 setInterval(saveGameState, 30000);
-
-// Charger l'état au démarrage AVANT l'initialisation du DOM
-let gameStateLoaded = false;
-if (document.readyState === 'loading') {
-    // Le document n'est pas encore chargé
-    document.addEventListener('DOMContentLoaded', function() {
-        loadGameStateFirst();
-        initializeAfterLoad();
-    });
-} else {
-    // Le document est déjà chargé
-    loadGameStateFirst();
-    initializeAfterLoad();
-}
-
-function loadGameStateFirst() {
-    console.log('💾 Tentative de chargement de l\'état sauvegardé...');
-    const saved = localStorage.getItem('actiBourseScout');
-    if (saved) {
-        try {
-            const parsedState = JSON.parse(saved);
-            // Ne charger que les données, pas l'état de fonctionnement
-            if (parsedState.teams) gameState.teams = parsedState.teams;
-            if (parsedState.history) gameState.history = parsedState.history;
-            if (parsedState.totalInvestments) gameState.totalInvestments = parsedState.totalInvestments;
-            
-            // Pour les stocks, ne charger que les prix si ils existent
-            if (parsedState.stocks) {
-                Object.keys(parsedState.stocks).forEach(stockId => {
-                    if (CONFIG.STOCKS.find(s => s.id === stockId)) {
-                        if (!gameState.stocks[stockId]) {
-                            gameState.stocks[stockId] = {};
-                        }
-                        gameState.stocks[stockId].price = parsedState.stocks[stockId].price || 50;
-                        gameState.stocks[stockId].previousPrice = parsedState.stocks[stockId].previousPrice || 50;
-                        gameState.stocks[stockId].change = parsedState.stocks[stockId].change || 0;
-                        gameState.stocks[stockId].changePercent = parsedState.stocks[stockId].changePercent || 0;
-                    }
-                });
-            }
-            
-            console.log('✅ État chargé avec succès');
-            gameStateLoaded = true;
-        } catch (e) {
-            console.log('❌ Erreur lors du chargement:', e);
-        }
-    } else {
-        console.log('🆕 Aucune sauvegarde trouvée - nouveau jeu');
-    }
-}
-
-function initializeAfterLoad() {
-    console.log('🎯 DOM Prêt - Initialisation...');
-    
-    // Initialiser seulement ce qui n'a pas été chargé
-    if (!gameStateLoaded) {
-        initializeGame();
-    } else {
-        // Compléter l'initialisation avec les données manquantes
-        completeInitialization();
-    }
-    
-    setupEventListeners();
-    updateSpeedMode();
-    updateDisplay();
-    console.log('✅ Application prête !');
-}
-
-function completeInitialization() {
-    console.log('🔄 Complétion de l\'initialisation avec données sauvegardées...');
-    
-    // S'assurer que tous les stocks existent
-    CONFIG.STOCKS.forEach(stock => {
-        if (!gameState.stocks[stock.id]) {
-            gameState.stocks[stock.id] = {
-                ...stock,
-                price: stock.initialPrice,
-                previousPrice: stock.initialPrice,
-                change: 0,
-                changePercent: 0
-            };
-        } else {
-            // Compléter les données manquantes
-            gameState.stocks[stock.id] = {
-                ...stock,
-                price: gameState.stocks[stock.id].price || stock.initialPrice,
-                previousPrice: gameState.stocks[stock.id].previousPrice || stock.initialPrice,
-                change: gameState.stocks[stock.id].change || 0,
-                changePercent: gameState.stocks[stock.id].changePercent || 0
-            };
-        }
-    });
-    
-    // S'assurer que toutes les équipes existent
-    for (let i = 1; i <= CONFIG.TEAMS_COUNT; i++) {
-        const teamId = `equipe${i}`;
-        if (!gameState.teams[teamId]) {
-            gameState.teams[teamId] = {
-                id: teamId,
-                name: `Équipe ${i}`,
-                points: CONFIG.INITIAL_POINTS,
-                portfolio: {}
-            };
-            
-            CONFIG.STOCKS.forEach(stock => {
-                gameState.teams[teamId].portfolio[stock.id] = 0;
-            });
-        }
-    }
-    
-    // S'assurer que le tracker d'investissements existe
-    if (!gameState.totalInvestments) {
-        gameState.totalInvestments = {};
-    }
-    CONFIG.STOCKS.forEach(stock => {
-        if (gameState.totalInvestments[stock.id] === undefined) {
-            gameState.totalInvestments[stock.id] = 0;
-        }
-    });
-    
-    console.log('✅ Initialisation complétée');
-}
 
 function updateSpeedMode() {
     const slider = document.getElementById('speedSlider');
@@ -800,26 +628,8 @@ function updateSpeedMode() {
         display.textContent = 'Mode Jeu - Variations aléatoires (5min à 1h30)';
     }
     
-    // Si le jeu est en cours, redémarrer avec le nouveau mode
-    if (gameState.isRunning) {
-        console.log('🔄 Redémarrage du système de mise à jour...');
-        
-        // Arrêter l'ancien système
-        if (gameState.updateInterval) {
-            clearInterval(gameState.updateInterval);
-            clearTimeout(gameState.updateInterval);
-            gameState.updateInterval = null;
-        }
-        
-        // Démarrer le nouveau système
-        if (gameState.isTestMode) {
-            console.log(`⚡ Relancement en mode test - Intervalle: ${CONFIG.TEST_UPDATE_INTERVAL}ms`);
-            gameState.updateInterval = setInterval(updateStockPrices, CONFIG.TEST_UPDATE_INTERVAL);
-        } else {
-            console.log('🎲 Relancement en mode jeu');
-            scheduleNextUpdate();
-        }
-    }
+    // PAS de redémarrage automatique - trop complexe
+    console.log('ℹ️ Changement de mode - redémarrez manuellement pour appliquer');
 }
 
 function scheduleNextUpdate() {
