@@ -97,6 +97,11 @@ header p {
     color: white;
 }
 
+.btn-secondary {
+    background: #6b7280;
+    color: white;
+}
+
 .status {
     margin-left: auto;
     display: flex;
