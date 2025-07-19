@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug SetInterval - ActiBourseScout</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .log { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        button { padding: 10px 20px; margin: 5px; font-size: 16px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug SetInterval</h1>
+    
+    <div class="log">
+        <h3>📋 Instructions</h3>
+        <p>1. Ouvrez la console (F12)</p>
+        <p>2. Les tests automatiques se lancent dans 2 secondes</p>
+        <p>3. Observez les messages dans la console</p>
+    </div>
+    
+    <button onclick="runDebugTests()">🧪 Relancer Tests</button>
+    <button onclick="testGameCode()">🎯 Tester Code Réel</button>
+    
+    <div class="log">
+        <h3>🎯 Ce que vous devriez voir :</h3>
+        <ul>
+            <li><strong>Test 1</strong> : "TEST INTERVAL FONCTIONNE!" toutes les 2 secondes</li>
+            <li><strong>Test 2</strong> : "INTERVAL DE SIMULATION DÉCLENCHÉ!" toutes les 5 secondes</li>
+            <li><strong>Test 3</strong> : "RÉEL INTERVAL FONCTIONNEL!" toutes les 10 secondes</li>
+        </ul>
+    </div>
+    
+    <!-- Inclure le script du jeu PUIS le script de debug -->
+    <script src="script.js"></script>
+    <script src="debug-setinterval.js"></script>
+</body>
+</html>

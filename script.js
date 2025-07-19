@@ -2,7 +2,7 @@
 const CONFIG = {
     INITIAL_POINTS: 500,
     TEAMS_COUNT: 5,
-    TEST_UPDATE_INTERVAL: 10000, // 10 secondes pour le mode test
+    TEST_UPDATE_INTERVAL: 10000, // ← Vérifiez cette ligne !
     GAME_MIN_INTERVAL: 300000, // 5 minutes minimum en mode jeu
     GAME_MAX_INTERVAL: 5400000, // 1h30 maximum en mode jeu
     STOCKS: [
@@ -236,29 +236,49 @@ function resetGame() {
 }
 
 function updateStockPrices() {
-    console.log('🔄 Mise à jour des cours déclenchée !'); // Debug
+    console.log('🔄 Mise à jour des cours déclenchée !');
     
     Object.keys(gameState.stocks).forEach(stockId => {
         const stock = gameState.stocks[stockId];
         stock.previousPrice = stock.price;
         
-        // Calculer l'influence des investissements (plus d'investissements = tendance à la baisse)
+        // NOUVELLE LOGIQUE : Retour à la moyenne pour éviter les tendances infinies
+        const initialPrice = stock.initialPrice;
+        const currentDeviation = (stock.price - initialPrice) / initialPrice;
+        
+        // Plus on s'éloigne du prix initial, plus on a tendance à revenir
+        let meanReversionFactor = 0;
+        if (Math.abs(currentDeviation) > 0.3) { // Si > 30% du prix initial
+            meanReversionFactor = -currentDeviation * 0.3; // Force de rappel vers la moyenne
+        }
+        
+        // Calculer l'influence des investissements
         const totalInvested = gameState.totalInvestments[stockId] || 0;
         const investmentInfluence = Math.min(totalInvested / 50, 0.15); // Max -15% d'influence
         
-        // Générer une variation de base plus importante (-20% à +20%)
-        const baseVariation = (Math.random() - 0.5) * 0.4;
+        // Variation de base moins forte pour éviter les mouvements extrêmes
+        const baseVariation = (Math.random() - 0.5) * 0.2; // Réduit de 0.4 à 0.2 (-10% à +10%)
         
-        // Appliquer l'influence des investissements (plus d'investissements = baisse)
-        const finalVariation = baseVariation - investmentInfluence;
+        // Ajouter une petite composante de momentum (30% de la variation précédente)
+        const momentum = stock.changePercent ? (stock.changePercent / 100) * 0.3 : 0;
         
-        const newPrice = Math.max(10, stock.price * (1 + finalVariation));
+        // Variation finale avec tous les facteurs
+        const finalVariation = baseVariation + meanReversionFactor - investmentInfluence + momentum;
         
-        stock.price = Math.round(newPrice * 100) / 100; // Arrondir à 2 décimales
+        // Appliquer la variation avec des limites strictes
+        const newPrice = stock.price * (1 + finalVariation);
+        
+        // Prix minimum et maximum pour éviter les extrêmes
+        const minPrice = initialPrice * 0.2; // Jamais moins de 20% du prix initial
+        const maxPrice = initialPrice * 3.0;  // Jamais plus de 300% du prix initial
+        
+        stock.price = Math.max(minPrice, Math.min(maxPrice, newPrice));
+        stock.price = Math.round(stock.price * 100) / 100; // Arrondir à 2 décimales
+        
         stock.change = stock.price - stock.previousPrice;
         stock.changePercent = (stock.change / stock.previousPrice) * 100;
         
-        console.log(`${stock.name}: ${stock.previousPrice.toFixed(2)} → ${stock.price.toFixed(2)} (${stock.changePercent.toFixed(1)}%)`);
+        console.log(`${stock.name}: ${stock.previousPrice.toFixed(2)} → ${stock.price.toFixed(2)} (${stock.changePercent.toFixed(1)}%) [dév: ${(currentDeviation * 100).toFixed(1)}%]`);
     });
     
     updateDisplay();
