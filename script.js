@@ -1,10 +1,33 @@
+/* filepath: c:\Users\alexc\Desktop\ActiBourseScout-Camp2025\script.js */
+
+// Fonction utilitaire pour nettoyer gameState avant envoi
+function getCleanGameState() {
+    return {
+        isRunning: gameState.isRunning,
+        startTime: gameState.startTime,
+        stocks: gameState.stocks,
+        teams: gameState.teams,
+        history: gameState.history,
+        isTestMode: gameState.isTestMode,
+        totalInvestments: gameState.totalInvestments
+        // On exclut updateInterval et timerInterval qui causent les références circulaires
+    };
+}
+
+
 // Configuration de l'application
 const CONFIG = {
     INITIAL_POINTS: 500,
-    TEAMS_COUNT: 5,
-    TEST_UPDATE_INTERVAL: 10000, // 10 secondes pour le test
-    GAME_MIN_INTERVAL: 300000,   // 5 minutes minimum en mode jeu
-    GAME_MAX_INTERVAL: 5400000,  // 1h30 maximum en mode jeu
+    TEST_UPDATE_INTERVAL: 10000,
+    GAME_MIN_INTERVAL: 300000,
+    GAME_MAX_INTERVAL: 5400000,
+    TEAMS: [
+        { id: 'alouettes', name: '🦅 Alouettes', emoji: '🦅', color: '#3498db' },
+        { id: 'canard', name: '🦆 Canard', emoji: '🦆', color: '#f39c12' },
+        { id: 'panda', name: '🐼 Panda', emoji: '🐼', color: '#2ecc71' },
+        { id: 'panthere', name: '🐆 Panthère', emoji: '🐆', color: '#9b59b6' },
+        { id: 'phaco', name: '🦏 Phaco', emoji: '🦏', color: '#e74c3c' }
+    ],
     STOCKS: [
         { id: 'montblanc', name: '🏔️ Mont Blanc', initialPrice: 50 },
         { id: 'monster', name: '👹 Monster', initialPrice: 50 },
@@ -17,11 +40,12 @@ const CONFIG = {
     ]
 };
 
-// Variables globales pour la connexion serveur
+// Variables globales
 let socket = null;
 let isConnected = false;
+let stockChart = null;
 
-// État global du jeu
+// État du jeu
 let gameState = {
     isRunning: false,
     startTime: null,
@@ -34,122 +58,134 @@ let gameState = {
     totalInvestments: {}
 };
 
-// Initialisation au chargement de la page
+// ========================
+// INITIALISATION
+// ========================
+
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Initialisation ActiBourseScout avec synchronisation');
+    console.log('🚀 Initialisation ActiBourseScout');
     
-    // Essayer de se connecter au serveur
-    if (typeof io !== 'undefined') {
-        try {
-            socket = io();
-            setupSocketListeners();
-            console.log('🌐 Tentative de connexion au serveur...');
-        } catch (error) {
-            console.log('📱 Mode local - pas de serveur disponible');
-        }
-    } else {
-        console.log('📱 Mode local - Socket.io non disponible');
-    }
+    // Connexion serveur
+    connectToServer();
     
+    // Initialisation
     initializeGame();
     setupEventListeners();
+    initChart();
     updateDisplay();
     updateConnectionStatus();
     
-    console.log('✅ Application prête !');
+    console.log('✅ Application prête');
+    console.log('🎯 Équipes configurées:', CONFIG.TEAMS.map(t => t.name));
 });
 
-// Configuration des listeners Socket.IO
+function connectToServer() {
+    try {
+        if (typeof io !== 'undefined') {
+            console.log('🌐 Connexion au serveur...');
+            socket = io();
+            setupSocketListeners();
+        }
+    } catch (error) {
+        console.log('📱 Mode hors ligne');
+        isConnected = false;
+    }
+}
+
 function setupSocketListeners() {
     if (!socket) return;
     
     socket.on('connect', () => {
-        console.log('✅ Connecté au serveur');
+        console.log('✅ Serveur connecté');
         isConnected = true;
         updateConnectionStatus();
+        socket.emit('requestGameState');
     });
     
     socket.on('disconnect', () => {
-        console.log('❌ Déconnecté du serveur');
+        console.log('❌ Serveur déconnecté');
         isConnected = false;
         updateConnectionStatus();
     });
     
     socket.on('gameState', (data) => {
-        console.log('📥 Réception état du serveur');
-        gameState.stocks = data.stocks || gameState.stocks;
-        gameState.teams = data.teams || gameState.teams;
-        gameState.history = data.history || gameState.history;
-        gameState.totalInvestments = data.totalInvestments || gameState.totalInvestments;
+        console.log('📥 État reçu du serveur');
+        // Merger sans écraser les intervals locaux
         gameState.isRunning = data.isRunning || false;
+        gameState.startTime = data.startTime || null;
+        gameState.stocks = data.stocks || {};
+        gameState.teams = data.teams || {};
+        gameState.history = data.history || [];
+        gameState.isTestMode = data.isTestMode || true;
+        gameState.totalInvestments = data.totalInvestments || {};
+        
         updateDisplay();
+        updateButtons();
+        
+        // Synchroniser le timer si nécessaire
+        if (gameState.isRunning && gameState.startTime && !gameState.timerInterval) {
+            startTimer();
+        }
     });
     
     socket.on('stockUpdate', (data) => {
-        console.log('📈 Réception mise à jour des prix du serveur');
-        gameState.stocks = data.stocks || gameState.stocks;
-        gameState.history.unshift({
-            time: new Date().toLocaleTimeString('fr-FR'),
-            message: '📊 Cours mis à jour (serveur)',
-            type: 'system'
-        });
+        console.log('📈 Mise à jour cours reçue');
+        gameState.stocks = data.stocks;
         updateDisplay();
+        updateChart();
+        addToHistory('📊 Cours mis à jour', 'system');
     });
     
-    socket.on('gameStarted', () => {
+    socket.on('gameStarted', (data) => {
         console.log('🚀 Jeu démarré par le serveur');
         gameState.isRunning = true;
-        gameState.startTime = Date.now();
-        
-        document.getElementById('startBtn').disabled = true;
-        document.getElementById('pauseBtn').disabled = false;
-        document.getElementById('status').textContent = 'En cours';
-        
-        if (!gameState.timerInterval) {
-            gameState.timerInterval = setInterval(updateTimer, 1000);
-        }
+        gameState.startTime = data.startTime;
+        startTimer();
+        updateButtons();
+        addToHistory('🚀 Simulation lancée', 'system');
     });
     
     socket.on('gamePaused', () => {
         console.log('⏸️ Jeu mis en pause par le serveur');
         gameState.isRunning = false;
-        
-        document.getElementById('startBtn').disabled = false;
-        document.getElementById('pauseBtn').disabled = true;
-        document.getElementById('status').textContent = 'En pause';
+        stopTimer();
+        updateButtons();
+        addToHistory('⏸️ Simulation suspendue', 'system');
+    });
+    
+    socket.on('gameReset', () => {
+        console.log('🔄 Reset reçu du serveur');
+        // Ne pas appeler initializeGame() pour éviter les conflits
+        gameState.isRunning = false;
+        gameState.startTime = null;
+        stopTimer();
+        resetTimer();
+        updateButtons();
+        addToHistory('🔄 Système réinitialisé', 'system');
     });
 }
 
-// Mise à jour du statut de connexion
-function updateConnectionStatus() {
-    const statusElement = document.getElementById('connectionStatus');
-    if (statusElement) {
-        if (isConnected) {
-            statusElement.textContent = '🟢 En ligne';
-            statusElement.className = 'connection-status online';
-        } else {
-            statusElement.textContent = '🔴 Hors ligne';
-            statusElement.className = 'connection-status offline';
-        }
-    }
-}
+// ========================
+// INITIALISATION DU JEU
+// ========================
 
-// Initialisation du jeu
 function initializeGame() {
-    console.log('🔧 Initialisation du jeu...');
+    console.log('🔧 Initialisation du jeu');
     
-    // Reset de l'état
-    gameState.stocks = {};
-    gameState.teams = {};
-    gameState.totalInvestments = {};
-    gameState.history = [];
-    gameState.isRunning = false;
-    gameState.startTime = null;
+    // Reset complet
+    gameState = {
+        isRunning: false,
+        startTime: null,
+        stocks: {},
+        teams: {},
+        history: [],
+        updateInterval: null,
+        timerInterval: null,
+        isTestMode: true,
+        totalInvestments: {}
+    };
     
-    // Nettoyer les intervals
-    clearAllIntervals();
-    
-    // Initialiser les actions
+    // Créer les actions
     CONFIG.STOCKS.forEach(stock => {
         gameState.stocks[stock.id] = {
             id: stock.id,
@@ -162,137 +198,218 @@ function initializeGame() {
         };
         gameState.totalInvestments[stock.id] = 0;
     });
-
-    // Initialiser les équipes
-    for (let i = 1; i <= CONFIG.TEAMS_COUNT; i++) {
-        const teamId = `equipe${i}`;
-        gameState.teams[teamId] = {
-            id: teamId,
-            name: `Équipe ${i}`,
+    
+    // Créer les équipes avec les VRAIS noms et couleurs
+    CONFIG.TEAMS.forEach(teamConfig => {
+        console.log(`✅ Création équipe: ${teamConfig.name} (ID: ${teamConfig.id})`);
+        
+        gameState.teams[teamConfig.id] = {
+            id: teamConfig.id,
+            name: teamConfig.name,           // NOM COMPLET avec emoji
+            emoji: teamConfig.emoji,         // Emoji seul
+            color: teamConfig.color,         // Couleur
             points: CONFIG.INITIAL_POINTS,
             portfolio: {}
         };
         
+        // Initialiser les portefeuilles
         CONFIG.STOCKS.forEach(stock => {
-            gameState.teams[teamId].portfolio[stock.id] = 0;
+            gameState.teams[teamConfig.id].portfolio[stock.id] = 0;
         });
-    }
+    });
     
     console.log('✅ Jeu initialisé');
+    console.log('🎯 Équipes créées:', Object.values(gameState.teams).map(t => t.name));
 }
 
-// Nettoyage des intervals
-function clearAllIntervals() {
-    if (gameState.updateInterval) {
-        clearInterval(gameState.updateInterval);
-        clearTimeout(gameState.updateInterval);
-        gameState.updateInterval = null;
+// ========================
+// GRAPHIQUE
+// ========================
+
+function initChart() {
+    const ctx = document.getElementById('stockChart');
+    if (!ctx || typeof Chart === 'undefined') {
+        console.warn('⚠️ Graphique non disponible (Chart.js manquant ou canvas inexistant)');
+        return;
     }
     
+    const stockColors = [
+        '#3498db', '#f39c12', '#2ecc71', '#9b59b6', 
+        '#e74c3c', '#1abc9c', '#f1c40f', '#95a5a6'
+    ];
+    
+    const datasets = CONFIG.STOCKS.map((stock, index) => ({
+        label: stock.name,
+        data: [],
+        borderColor: stockColors[index],
+        backgroundColor: stockColors[index] + '20',
+        borderWidth: 3,
+        fill: false,
+        tension: 0.2,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        pointBorderWidth: 2,
+        pointBorderColor: '#fff',
+        pointBackgroundColor: stockColors[index]
+    }));
+    
+    stockChart = new Chart(ctx, {
+        type: 'line',
+        data: { labels: [], datasets: datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { intersect: false, mode: 'index' },
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Évolution des Cours Boursiers',
+                    color: '#2d3748',
+                    font: { size: 18, weight: 'bold' },
+                    padding: 20
+                },
+                legend: {
+                    position: 'top',
+                    labels: {
+                        color: '#2d3748',
+                        font: { size: 12 },
+                        padding: 15,
+                        usePointStyle: true
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: { display: true, text: 'Temps', color: '#4a5568' },
+                    grid: { color: 'rgba(0, 0, 0, 0.1)' },
+                    ticks: { color: '#718096', maxTicksLimit: 10 }
+                },
+                y: {
+                    title: { display: true, text: 'Prix (points)', color: '#4a5568' },
+                    grid: { color: 'rgba(0, 0, 0, 0.1)' },
+                    ticks: { 
+                        color: '#718096',
+                        callback: function(value) { return value.toFixed(1) + ' pts'; }
+                    }
+                }
+            }
+        }
+    });
+    
+    console.log('📊 Graphique initialisé');
+}
+
+function updateChart() {
+    if (!stockChart) return;
+    
+    const currentTime = new Date().toLocaleTimeString('fr-FR', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+    
+    stockChart.data.labels.push(currentTime);
+    
+    CONFIG.STOCKS.forEach((stock, index) => {
+        const stockData = gameState.stocks[stock.id];
+        if (stockData) {
+            stockChart.data.datasets[index].data.push(stockData.price);
+        }
+    });
+    
+    // Limiter à 15 points pour la lisibilité
+    if (stockChart.data.labels.length > 15) {
+        stockChart.data.labels.shift();
+        stockChart.data.datasets.forEach(dataset => dataset.data.shift());
+    }
+    
+    stockChart.update('none');
+}
+
+// ========================
+// TIMER CORRIGÉ
+// ========================
+
+function startTimer() {
+    console.log('⏰ Démarrage du timer');
+    if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+    gameState.timerInterval = setInterval(updateTimer, 1000);
+    updateTimer(); // Mise à jour immédiate
+}
+
+function stopTimer() {
+    console.log('⏰ Arrêt du timer');
     if (gameState.timerInterval) {
         clearInterval(gameState.timerInterval);
         gameState.timerInterval = null;
     }
 }
 
-// Configuration des événements
-function setupEventListeners() {
-    document.getElementById('startBtn').addEventListener('click', startGame);
-    document.getElementById('pauseBtn').addEventListener('click', pauseGame);
-    document.getElementById('resetBtn').addEventListener('click', resetGame);
-    
-    document.getElementById('testUpdateBtn').addEventListener('click', function() {
-        console.log('🧪 Test manuel');
-        if (isConnected && socket) {
-            socket.emit('manualUpdate');
-        } else {
-            updateStockPrices();
-        }
-    });
-    
-    document.getElementById('forceUpdateBtn').addEventListener('click', function() {
-        console.log('⚡ Mise à jour forcée');
-        if (isConnected && socket) {
-            socket.emit('forceUpdate');
-        } else {
-            forceStockUpdate();
-        }
-    });
-    
-    document.getElementById('executeBtn').addEventListener('click', executeTransaction);
-    document.getElementById('speedSlider').addEventListener('input', updateSpeedMode);
-    
-    updateSpeedMode();
+function resetTimer() {
+    stopTimer();
+    gameState.startTime = null;
+    const timerElement = document.getElementById('timer');
+    if (timerElement) timerElement.textContent = '00:00:00';
 }
 
-// Démarrage du jeu
+function updateTimer() {
+    if (!gameState.startTime) return;
+    
+    const timerElement = document.getElementById('timer');
+    if (!timerElement) {
+        console.warn('⚠️ Élément timer non trouvé');
+        return;
+    }
+    
+    const elapsed = Date.now() - gameState.startTime;
+    const hours = Math.floor(elapsed / 3600000);
+    const minutes = Math.floor((elapsed % 3600000) / 60000);
+    const seconds = Math.floor((elapsed % 60000) / 1000);
+    
+    const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    
+    timerElement.textContent = timeString;
+}
+
+// ========================
+// CONTRÔLES DU JEU
+// ========================
+
 function startGame() {
-    console.log('🚀 Démarrage du jeu');
+    console.log('🚀 Démarrage');
     
     if (isConnected && socket) {
-        // Mode serveur
         const slider = document.getElementById('speedSlider');
         const isTestMode = slider.value === '1';
         socket.emit('startGame', { isTestMode });
     } else {
-        // Mode local
         startGameLocal();
     }
 }
 
 function startGameLocal() {
+    console.log('🚀 Démarrage local');
     clearAllIntervals();
     
-    const slider = document.getElementById('speedSlider');
-    gameState.isTestMode = slider.value === '1';
     gameState.isRunning = true;
     gameState.startTime = Date.now();
+    gameState.isTestMode = document.getElementById('speedSlider').value === '1';
     
-    console.log(`📊 Mode local: ${gameState.isTestMode ? 'TEST' : 'JEU'}`);
-    
-    document.getElementById('startBtn').disabled = true;
-    document.getElementById('pauseBtn').disabled = false;
-    document.getElementById('status').textContent = 'En cours';
+    startTimer();
+    updateButtons();
     
     if (gameState.isTestMode) {
-        startTestMode();
+        gameState.updateInterval = setInterval(() => {
+            updateStockPrices();
+            updateChart();
+        }, CONFIG.TEST_UPDATE_INTERVAL);
     } else {
-        startGameMode();
+        scheduleNextUpdate();
     }
     
-    gameState.timerInterval = setInterval(updateTimer, 1000);
-    addToHistory('🚀 Activité démarrée (local)', 'system');
+    addToHistory('🚀 Simulation lancée (local)', 'system');
 }
 
-function startTestMode() {
-    gameState.updateInterval = setInterval(function() {
-        if (gameState.isRunning) {
-            console.log('🔄 Mise à jour automatique (mode test)');
-            updateStockPrices();
-        }
-    }, CONFIG.TEST_UPDATE_INTERVAL);
-    
-    console.log('⚡ Mode test activé - mises à jour toutes les 10 secondes');
-}
-
-function startGameMode() {
-    const delay = CONFIG.GAME_MIN_INTERVAL + 
-        Math.random() * (CONFIG.GAME_MAX_INTERVAL - CONFIG.GAME_MIN_INTERVAL);
-    
-    gameState.updateInterval = setTimeout(function() {
-        if (gameState.isRunning && !gameState.isTestMode) {
-            console.log('🎲 Mise à jour programmée');
-            updateStockPrices();
-            startGameMode(); // Reprogrammer la suivante
-        }
-    }, delay);
-    
-    console.log(`🎲 Prochaine mise à jour dans ${Math.round(delay/1000)} secondes`);
-}
-
-// Pause du jeu
 function pauseGame() {
-    console.log('⏸️ Pause du jeu');
+    console.log('⏸️ Pause');
     
     if (isConnected && socket) {
         socket.emit('pauseGame');
@@ -304,17 +421,13 @@ function pauseGame() {
 function pauseGameLocal() {
     gameState.isRunning = false;
     clearAllIntervals();
-    
-    document.getElementById('startBtn').disabled = false;
-    document.getElementById('pauseBtn').disabled = true;
-    document.getElementById('status').textContent = 'En pause';
-    
-    addToHistory('⏸️ Jeu mis en pause (local)', 'system');
+    stopTimer();
+    updateButtons();
+    addToHistory('⏸️ Simulation suspendue', 'system');
 }
 
-// Reset du jeu
 function resetGame() {
-    console.log('🔄 Reset du jeu');
+    console.log('🔄 Reset');
     
     if (isConnected && socket) {
         socket.emit('resetGame');
@@ -326,104 +439,70 @@ function resetGame() {
 function resetGameLocal() {
     pauseGameLocal();
     initializeGame();
+    resetTimer();
+    
+    // Reset du graphique
+    if (stockChart) {
+        stockChart.data.labels = [];
+        stockChart.data.datasets.forEach(dataset => {
+            dataset.data = [];
+        });
+        stockChart.update();
+    }
+    
     updateDisplay();
-    
     document.getElementById('status').textContent = 'Arrêté';
-    document.getElementById('timer').textContent = '00:00:00';
-    addToHistory('🔄 Jeu réinitialisé (local)', 'system');
+    addToHistory('🔄 Système réinitialisé', 'system');
 }
 
-// Mise à jour du mode de vitesse
-function updateSpeedMode() {
-    const slider = document.getElementById('speedSlider');
-    const display = document.getElementById('speedDisplay');
-    
-    gameState.isTestMode = slider.value === '1';
-    
-    if (gameState.isTestMode) {
-        display.textContent = 'Mode Test - Variations toutes les 10 secondes';
-        display.className = 'speed-display test-mode';
-    } else {
-        display.textContent = 'Mode Jeu - Variations aléatoires (5min à 1h30)';
-        display.className = 'speed-display game-mode';
-    }
-    
-    // Si le jeu est en cours et en mode local, redémarrer
-    if (gameState.isRunning && !isConnected) {
-        console.log('🔄 Changement de mode - redémarrage local');
-        clearAllIntervals();
-        
-        if (gameState.isTestMode) {
-            startTestMode();
-        } else {
-            startGameMode();
-        }
-    }
-}
+// ========================
+// GESTION DES PRIX
+// ========================
 
-// Mise à jour des prix des actions
 function updateStockPrices() {
-    console.log('📈 Mise à jour des cours des actions');
+    console.log('📈 Mise à jour des cours');
     
     Object.keys(gameState.stocks).forEach(stockId => {
         const stock = gameState.stocks[stockId];
         stock.previousPrice = stock.price;
         
-        // Influence des investissements
         const totalInvested = gameState.totalInvestments[stockId] || 0;
         const investmentInfluence = Math.min(totalInvested / 100, 0.15);
+        const randomVariation = (Math.random() - 0.5) * 0.4;
         
-        // Variation aléatoire
-        const randomVariation = (Math.random() - 0.5) * 0.4; // -20% à +20%
-        
-        // Effet de retour à la moyenne
-        const deviation = (stock.price - stock.initialPrice) / stock.initialPrice;
-        const meanReversion = Math.abs(deviation) > 0.3 ? -deviation * 0.2 : 0;
-        
-        const finalVariation = randomVariation - investmentInfluence + meanReversion;
+        const finalVariation = randomVariation - investmentInfluence;
         
         let newPrice = stock.price * (1 + finalVariation);
-        
-        // Limites de prix
-        const minPrice = stock.initialPrice * 0.2;
-        const maxPrice = stock.initialPrice * 5;
-        newPrice = Math.max(minPrice, Math.min(maxPrice, newPrice));
+        newPrice = Math.max(10, Math.min(stock.initialPrice * 4, newPrice));
         
         stock.price = Math.round(newPrice * 100) / 100;
         stock.change = stock.price - stock.previousPrice;
-        stock.changePercent = stock.previousPrice > 0 ? (stock.change / stock.previousPrice) * 100 : 0;
-        
-        console.log(`  ${stock.name}: ${stock.previousPrice.toFixed(2)} → ${stock.price.toFixed(2)} (${stock.changePercent.toFixed(1)}%)`);
+        stock.changePercent = (stock.change / stock.previousPrice) * 100;
     });
     
     updateDisplay();
-    addToHistory('📊 Cours des actions mis à jour', 'system');
+    addToHistory('📊 Cours mis à jour', 'system');
 }
 
-function forceStockUpdate() {
-    console.log('⚡ Mise à jour forcée des prix');
+function scheduleNextUpdate() {
+    const delay = CONFIG.GAME_MIN_INTERVAL + 
+        Math.random() * (CONFIG.GAME_MAX_INTERVAL - CONFIG.GAME_MIN_INTERVAL);
     
-    Object.keys(gameState.stocks).forEach(stockId => {
-        const stock = gameState.stocks[stockId];
-        stock.previousPrice = stock.price;
-        
-        const variation = (Math.random() - 0.5) * 0.6; // -30% à +30%
-        let newPrice = stock.price * (1 + variation);
-        
-        const minPrice = stock.initialPrice * 0.3;
-        const maxPrice = stock.initialPrice * 3;
-        newPrice = Math.max(minPrice, Math.min(maxPrice, newPrice));
-        
-        stock.price = Math.round(newPrice * 100) / 100;
-        stock.change = stock.price - stock.previousPrice;
-        stock.changePercent = stock.previousPrice > 0 ? (stock.change / stock.previousPrice) * 100 : 0;
-    });
+    gameState.updateInterval = setTimeout(() => {
+        if (gameState.isRunning && !gameState.isTestMode) {
+            updateStockPrices();
+            updateChart();
+            scheduleNextUpdate();
+        }
+    }, delay);
     
-    updateDisplay();
-    addToHistory('⚡ Mise à jour forcée appliquée', 'system');
+    console.log(`⏰ Prochaine MAJ dans ${Math.round(delay/1000)}s`);
 }
 
-// Exécution des transactions
+// ========================
+// TRANSACTIONS
+// ========================
+
 function executeTransaction() {
     const teamId = document.getElementById('teamSelect').value;
     const stockId = document.getElementById('stockSelect').value;
@@ -431,15 +510,13 @@ function executeTransaction() {
     const quantity = parseInt(document.getElementById('quantityInput').value);
     
     if (!teamId || !stockId || !quantity || quantity <= 0) {
-        alert('Veuillez remplir tous les champs avec des valeurs valides.');
+        alert('⚠️ Veuillez compléter tous les champs');
         return;
     }
     
     if (isConnected && socket) {
-        // Envoyer la transaction au serveur
         socket.emit('transaction', { teamId, stockId, action, quantity });
     } else {
-        // Traiter la transaction localement
         executeTransactionLocal(teamId, stockId, action, quantity);
     }
     
@@ -453,7 +530,7 @@ function executeTransactionLocal(teamId, stockId, action, quantity) {
     
     if (action === 'buy') {
         if (team.points < totalCost) {
-            alert(`❌ Pas assez de points!\nCoût: ${totalCost.toFixed(2)} points\nDisponible: ${team.points.toFixed(2)} points`);
+            alert(`❌ Fonds insuffisants!\nCoût: ${totalCost.toFixed(2)}\nDisponible: ${team.points.toFixed(2)}`);
             return;
         }
         
@@ -463,10 +540,10 @@ function executeTransactionLocal(teamId, stockId, action, quantity) {
         
         addToHistory(`🛒 ${team.name} achète ${quantity} ${stock.name} pour ${totalCost.toFixed(2)} pts`, 'buy');
         
-    } else { // sell
+    } else {
         const owned = team.portfolio[stockId] || 0;
         if (owned < quantity) {
-            alert(`❌ Pas assez d'actions!\nDemandé: ${quantity}\nDisponible: ${owned}`);
+            alert(`❌ Quantité insuffisante!\nDemandé: ${quantity}\nDisponible: ${owned}`);
             return;
         }
         
@@ -480,50 +557,110 @@ function executeTransactionLocal(teamId, stockId, action, quantity) {
     updateDisplay();
 }
 
-// Fonctions utilitaires
+function adjustTeamPoints(teamId, amount) {
+    if (isConnected && socket) {
+        socket.emit('adjustPoints', { teamId, amount });
+    } else {
+        const team = gameState.teams[teamId];
+        if (!team) return;
+        
+        team.points = Math.max(0, team.points + amount);
+        const symbol = amount > 0 ? '+' : '';
+        addToHistory(`🎯 ${team.name}: ${symbol}${amount} points`, 'system');
+        updateDisplay();
+    }
+}
+
+// ========================
+// UTILITAIRES
+// ========================
+
 function calculateTeamValue(team) {
     let totalValue = team.points;
-    
     Object.keys(team.portfolio).forEach(stockId => {
         const quantity = team.portfolio[stockId] || 0;
         const stockPrice = gameState.stocks[stockId]?.price || 0;
         totalValue += quantity * stockPrice;
     });
-    
     return totalValue;
 }
 
-function updateTimer() {
-    if (!gameState.startTime) return;
+function clearAllIntervals() {
+    if (gameState.updateInterval) {
+        clearInterval(gameState.updateInterval);
+        clearTimeout(gameState.updateInterval);
+        gameState.updateInterval = null;
+    }
     
-    const elapsed = Date.now() - gameState.startTime;
-    const hours = Math.floor(elapsed / 3600000);
-    const minutes = Math.floor((elapsed % 3600000) / 60000);
-    const seconds = Math.floor((elapsed % 60000) / 1000);
+    if (gameState.timerInterval) {
+        clearInterval(gameState.timerInterval);
+        gameState.timerInterval = null;
+    }
+}
+
+function updateButtons() {
+    const startBtn = document.getElementById('startBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const statusElement = document.getElementById('status');
     
-    const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    if (gameState.isRunning) {
+        if (startBtn) startBtn.disabled = true;
+        if (pauseBtn) pauseBtn.disabled = false;
+        if (statusElement) statusElement.textContent = 'En cours';
+    } else {
+        if (startBtn) startBtn.disabled = false;
+        if (pauseBtn) pauseBtn.disabled = true;
+        if (statusElement) statusElement.textContent = 'Arrêté';
+    }
+}
+
+function updateConnectionStatus() {
+    const statusElement = document.getElementById('connectionStatus');
+    const statusElement2 = document.getElementById('connectionStatus2');
     
-    const timerElement = document.getElementById('timer');
-    if (timerElement) {
-        timerElement.textContent = timeString;
+    const statusText = isConnected ? '🟢 Serveur Connecté' : '🔴 Mode Hors Ligne';
+    const statusClass = isConnected ? 'connection-status online' : 'connection-status offline';
+    
+    if (statusElement) {
+        statusElement.textContent = statusText;
+        statusElement.className = statusClass;
+    }
+    
+    if (statusElement2) {
+        statusElement2.textContent = statusText;
     }
 }
 
 function addToHistory(message, type) {
     const timestamp = new Date().toLocaleTimeString('fr-FR');
-    gameState.history.unshift({
-        time: timestamp,
-        message: message,
-        type: type
-    });
+    gameState.history.unshift({ time: timestamp, message: message, type: type });
     
-    // Limiter l'historique à 50 entrées
     if (gameState.history.length > 50) {
         gameState.history = gameState.history.slice(0, 50);
     }
+    
+    updateHistoryDisplay();
 }
 
-// Fonctions d'affichage
+function updateSpeedMode() {
+    const slider = document.getElementById('speedSlider');
+    const display = document.getElementById('speedDisplay');
+    
+    if (!slider || !display) return;
+    
+    gameState.isTestMode = slider.value === '1';
+    
+    if (gameState.isTestMode) {
+        display.textContent = 'Mode Test - Variations toutes les 10 secondes';
+    } else {
+        display.textContent = 'Mode Simulation - Variations aléatoires (5min à 1h30)';
+    }
+}
+
+// ========================
+// AFFICHAGE
+// ========================
+
 function updateDisplay() {
     updateStocksDisplay();
     updateTeamsDisplay();
@@ -570,8 +707,10 @@ function updateTeamsDisplay() {
     teamsGrid.innerHTML = '';
     
     Object.values(gameState.teams).forEach(team => {
+        console.log(`🖥️ Affichage équipe: ${team.name} (ID: ${team.id})`);
+        
         const teamCard = document.createElement('div');
-        teamCard.className = 'team-card';
+        teamCard.className = `team-card team-${team.id}`;
         
         const totalValue = calculateTeamValue(team);
         const tokens = Math.floor(totalValue / 50);
@@ -584,9 +723,9 @@ function updateTeamsDisplay() {
                 const value = quantity * stock.price;
                 portfolioHTML += `
                     <div class="portfolio-item">
-                        <span class="portfolio-stock">${stock.name}</span>
-                        <span class="portfolio-quantity">${quantity}</span>
-                        <span class="portfolio-value">${value.toFixed(2)} pts</span>
+                        <span>${stock.name}</span>
+                        <span>${quantity}</span>
+                        <span>${value.toFixed(2)} pts</span>
                     </div>
                 `;
             }
@@ -599,8 +738,16 @@ function updateTeamsDisplay() {
         teamCard.innerHTML = `
             <div class="team-name">${team.name}</div>
             <div class="team-points">💰 ${team.points.toFixed(2)} points</div>
-            <div class="team-total">📊 Valeur totale: <strong>${totalValue.toFixed(2)} points</strong></div>
-            <div class="team-tokens">🎫 Jetons: <strong>${tokens} jetons</strong></div>
+            <div class="team-total">📊 Valeur totale: <strong>${totalValue.toFixed(2)} pts</strong></div>
+            <div class="team-tokens">🎫 Jetons: <strong>${tokens}</strong></div>
+            
+            <div class="team-controls">
+                <button class="btn-mini btn-bonus" onclick="adjustTeamPoints('${team.id}', 50)" title="Bonus +50pts">+50</button>
+                <button class="btn-mini btn-bonus" onclick="adjustTeamPoints('${team.id}', 10)" title="Bonus +10pts">+10</button>
+                <button class="btn-mini btn-malus" onclick="adjustTeamPoints('${team.id}', -10)" title="Malus -10pts">-10</button>
+                <button class="btn-mini btn-malus" onclick="adjustTeamPoints('${team.id}', -50)" title="Malus -50pts">-50</button>
+            </div>
+            
             <div class="team-portfolio">
                 <strong>Portefeuille:</strong>
                 ${portfolioHTML}
@@ -612,7 +759,6 @@ function updateTeamsDisplay() {
 }
 
 function updateSelects() {
-    // Sélecteur d'équipe
     const teamSelect = document.getElementById('teamSelect');
     if (teamSelect) {
         const currentTeam = teamSelect.value;
@@ -627,7 +773,6 @@ function updateSelects() {
         });
     }
     
-    // Sélecteur d'action
     const stockSelect = document.getElementById('stockSelect');
     if (stockSelect) {
         const currentStock = stockSelect.value;
@@ -701,83 +846,49 @@ function updateLeaderboard() {
         
         row.innerHTML = `
             <td class="position-medal ${positionClass}">${positionDisplay}</td>
-            <td class="team-name-cell">${team.name}</td>
-            <td class="total-value-cell">${team.totalValue.toFixed(2)} pts</td>
-            <td class="tokens-cell">${team.tokens} 🎫</td>
+            <td>${team.name}</td>
+            <td>${team.totalValue.toFixed(2)} pts</td>
+            <td>${team.tokens} 🎫</td>
         `;
         
         leaderboardBody.appendChild(row);
     });
 }
 
-// Fonctions de debug globales
-window.debugGameState = function() {
-    console.log('🔍 DIAGNOSTIC ACTIBOURSE:');
-    console.log('════════════════════════════');
-    console.log('📊 État général:');
-    console.log('- Jeu en cours:', gameState.isRunning);
-    console.log('- Mode test:', gameState.isTestMode);
-    console.log('- Connecté au serveur:', isConnected);
-    console.log('- Interval actif:', !!gameState.updateInterval);
-    console.log('- Timer actif:', !!gameState.timerInterval);
-    
-    if (gameState.startTime) {
-        const elapsed = Math.round((Date.now() - gameState.startTime) / 1000);
-        console.log('- Temps écoulé:', elapsed, 'secondes');
-    }
-    
-    console.log('📈 Actions:', Object.keys(gameState.stocks).length);
-    console.log('👥 Équipes:', Object.keys(gameState.teams).length);
-    console.log('📝 Historique:', gameState.history.length, 'entrées');
-    console.log('════════════════════════════');
-};
+// ========================
+// ÉVÉNEMENTS
+// ========================
 
-window.forceUpdate = function() {
-    console.log('🧪 Mise à jour forcée manuelle');
-    if (isConnected && socket) {
-        socket.emit('forceUpdate');
-    } else {
-        forceStockUpdate();
-    }
-};
-
-window.resetApp = function() {
-    console.log('🔄 Reset complet de l\'application');
-    resetGame();
-};
-
-window.emergencyStop = function() {
-    console.log('🚨 ARRÊT D\'URGENCE');
-    gameState.isRunning = false;
-    clearAllIntervals();
+function setupEventListeners() {
+    document.getElementById('startBtn')?.addEventListener('click', startGame);
+    document.getElementById('pauseBtn')?.addEventListener('click', pauseGame);
+    document.getElementById('resetBtn')?.addEventListener('click', resetGame);
     
-    if (isConnected && socket) {
-        socket.emit('pauseGame');
-    }
+    document.getElementById('testUpdateBtn')?.addEventListener('click', () => {
+        if (isConnected && socket) {
+            socket.emit('manualUpdate');
+        } else {
+            updateStockPrices();
+            updateChart();
+        }
+    });
     
-    console.log('✅ Tous les processus arrêtés');
-};
-
-// Sauvegarde automatique locale
-function saveGameState() {
-    try {
-        const dataToSave = {
-            teams: gameState.teams,
-            stocks: gameState.stocks,
-            history: gameState.history.slice(0, 20),
-            totalInvestments: gameState.totalInvestments,
-            timestamp: Date.now()
-        };
-        
-        localStorage.setItem('actiBourseScout', JSON.stringify(dataToSave));
-        console.log('💾 État sauvegardé localement');
-    } catch (error) {
-        console.error('❌ Erreur de sauvegarde locale:', error);
-    }
+    document.getElementById('forceUpdateBtn')?.addEventListener('click', () => {
+        if (isConnected && socket) {
+            socket.emit('forceUpdate');
+        } else {
+            updateStockPrices();
+            updateChart();
+        }
+    });
+    
+    document.getElementById('executeBtn')?.addEventListener('click', executeTransaction);
+    document.getElementById('speedSlider')?.addEventListener('input', updateSpeedMode);
+    
+    updateSpeedMode();
 }
 
-// Sauvegarde automatique toutes les 30 secondes
-setInterval(saveGameState, 30000);
+// Rendre accessible globalement
+window.adjustTeamPoints = adjustTeamPoints;
 
-console.log('🚀 ActiBourseScout chargé - Version complète avec synchronisation');
-console.log('📖 Commandes debug: debugGameState(), forceUpdate(), resetApp(), emergencyStop()');
+console.log('✅ ActiBourseScout - Version Professionnelle avec Graphique Chargée');

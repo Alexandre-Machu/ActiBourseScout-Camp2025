@@ -6,6 +6,7 @@
     <title>🏕️ ActiBourseScout - Camp 2025</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="container">
@@ -19,8 +20,24 @@
         </header>
 
         <!-- Contrôles -->
-        <section class="controls-section">
+        <section class="controls-section section">
             <h2>🎮 Contrôles</h2>
+            
+            <!-- Informations de statut -->
+            <div class="status-info">
+                <div class="status-item">
+                    <span>Statut:</span>
+                    <span id="status">Arrêté</span>
+                </div>
+                <div class="status-item">
+                    <span>Temps:</span>
+                    <span id="timer">00:00:00</span>
+                </div>
+                <div class="status-item">
+                    <span>Connexion:</span>
+                    <span id="connectionStatus2">🔴 Mode Hors Ligne</span>
+                </div>
+            </div>
             
             <div class="control-group">
                 <div class="speed-control">
@@ -38,29 +55,26 @@
                 <button id="resetBtn" class="btn btn-reset">🔄 Reset</button>
                 <button id="forceUpdateBtn" class="btn btn-force">⚡ Force Update</button>
             </div>
-
-            <div class="status-info">
-                <div class="status-item">
-                    <span>📊 Statut:</span>
-                    <span id="status">Arrêté</span>
-                </div>
-                <div class="status-item">
-                    <span>⏱️ Temps écoulé:</span>
-                    <span id="timer">00:00:00</span>
-                </div>
-            </div>
         </section>
 
-        <!-- Marché des Actions -->
-        <section class="stocks-section">
-            <h2>📈 Marché des Actions</h2>
+        <!-- Actions -->
+        <section class="stocks-section section">
+            <h2>📈 Actions</h2>
             <div id="stocksGrid" class="stocks-grid">
                 <!-- Généré dynamiquement -->
             </div>
         </section>
 
+        <!-- Graphique des cours -->
+        <section class="chart-section section">
+            <h2>📊 Évolution des Cours</h2>
+            <div class="chart-container">
+                <canvas id="stockChart"></canvas>
+            </div>
+        </section>
+
         <!-- Équipes -->
-        <section class="teams-section">
+        <section class="teams-section section">
             <h2>👥 Équipes</h2>
             <div id="teamsGrid" class="teams-grid">
                 <!-- Généré dynamiquement -->
@@ -68,7 +82,7 @@
         </section>
 
         <!-- Transactions -->
-        <section class="transactions-section">
+        <section class="transaction-section section">
             <h2>💰 Transactions</h2>
             <div class="transaction-form">
                 <select id="teamSelect" class="form-select">
@@ -84,14 +98,14 @@
                     <option value="sell">💰 Vendre</option>
                 </select>
                 
-                <input type="number" id="quantityInput" placeholder="Quantité" min="1" class="form-input">
+                <input type="number" id="quantityInput" class="form-input" placeholder="Quantité" min="1">
                 
                 <button id="executeBtn" class="btn btn-execute">✅ Exécuter</button>
             </div>
         </section>
 
         <!-- Classement -->
-        <section class="leaderboard-section">
+        <section class="leaderboard-section section">
             <h2>🏆 Classement</h2>
             <div class="table-container">
                 <table class="leaderboard-table">
@@ -111,7 +125,7 @@
         </section>
 
         <!-- Historique -->
-        <section class="history-section">
+        <section class="history-section section">
             <h2>📜 Historique</h2>
             <div id="history" class="history-container">
                 <!-- Généré dynamiquement -->
