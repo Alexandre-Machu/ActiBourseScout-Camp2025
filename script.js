@@ -2,9 +2,9 @@
 const CONFIG = {
     INITIAL_POINTS: 500,
     TEAMS_COUNT: 5,
-    TEST_UPDATE_INTERVAL: 10000, // ← Vérifiez cette ligne !
-    GAME_MIN_INTERVAL: 300000, // 5 minutes minimum en mode jeu
-    GAME_MAX_INTERVAL: 5400000, // 1h30 maximum en mode jeu
+    TEST_UPDATE_INTERVAL: 10000, // 10 secondes pour le test
+    GAME_MIN_INTERVAL: 300000,   // 5 minutes minimum en mode jeu
+    GAME_MAX_INTERVAL: 5400000,  // 1h30 maximum en mode jeu
     STOCKS: [
         { id: 'montblanc', name: '🏔️ Mont Blanc', initialPrice: 50 },
         { id: 'monster', name: '👹 Monster', initialPrice: 50 },
@@ -17,7 +17,7 @@ const CONFIG = {
     ]
 };
 
-// État global de l'application - VERSION ULTRA-SIMPLE
+// État global simplifié et robuste
 let gameState = {
     isRunning: false,
     startTime: null,
@@ -27,32 +27,49 @@ let gameState = {
     updateInterval: null,
     timerInterval: null,
     isTestMode: true,
-    nextUpdateTime: null,
     totalInvestments: {}
 };
 
-// INITIALISATION DIRECTE ET SIMPLE
+// Initialisation au chargement de la page
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🎯 INITIALISATION ULTRA-SIMPLE');
+    console.log('🚀 Initialisation de ActiBourseScout');
     
-    // Supprimer toute sauvegarde qui pourrait interférer
+    // Nettoyer le localStorage au démarrage pour éviter les conflits
     localStorage.removeItem('actiBourseScout');
     
-    initializeGameSimple();
+    // Initialiser le jeu
+    initializeGame();
     setupEventListeners();
     updateDisplay();
     
-    console.log('✅ Application prête !');
+    console.log('✅ Application prête à utiliser!');
 });
 
-function initializeGameSimple() {
-    console.log('🔧 Initialisation simple...');
+// ============================================================================
+// INITIALISATION DU JEU
+// ============================================================================
+
+function initializeGame() {
+    console.log('🔧 Initialisation du jeu...');
     
-    // Reset complet
+    // Reset de l'état
     gameState.stocks = {};
     gameState.teams = {};
     gameState.totalInvestments = {};
     gameState.history = [];
+    gameState.isRunning = false;
+    gameState.startTime = null;
+    
+    // Nettoyer les intervals existants
+    if (gameState.updateInterval) {
+        clearInterval(gameState.updateInterval);
+        clearTimeout(gameState.updateInterval);
+        gameState.updateInterval = null;
+    }
+    if (gameState.timerInterval) {
+        clearInterval(gameState.timerInterval);
+        gameState.timerInterval = null;
+    }
     
     // Initialiser les actions
     CONFIG.STOCKS.forEach(stock => {
@@ -78,47 +95,52 @@ function initializeGameSimple() {
             portfolio: {}
         };
         
+        // Initialiser le portfolio de chaque équipe
         CONFIG.STOCKS.forEach(stock => {
             gameState.teams[teamId].portfolio[stock.id] = 0;
         });
     }
-
-    console.log('✅ Jeu initialisé');
-    console.log('📊 Actions créées:', Object.keys(gameState.stocks).length);
-    console.log('👥 Équipes créées:', Object.keys(gameState.teams).length);
+    
+    console.log('✅ Jeu initialisé avec succès');
+    console.log(`📊 ${CONFIG.STOCKS.length} actions créées`);
+    console.log(`👥 ${CONFIG.TEAMS_COUNT} équipes créées`);
 }
 
+// ============================================================================
+// GESTION DES ÉVÉNEMENTS
+// ============================================================================
+
 function setupEventListeners() {
-    document.getElementById('startBtn').addEventListener('click', startGameSimple);
+    // Boutons principaux
+    document.getElementById('startBtn').addEventListener('click', startGame);
     document.getElementById('pauseBtn').addEventListener('click', pauseGame);
     document.getElementById('resetBtn').addEventListener('click', resetGame);
     
     // Boutons de test
     document.getElementById('testUpdateBtn').addEventListener('click', function() {
-        console.log('🧪 Test manuel');
+        console.log('🧪 Test manuel de mise à jour');
         updateStockPrices();
     });
     
     document.getElementById('forceUpdateBtn').addEventListener('click', function() {
-        console.log('⚡ Mise à jour forcée');
-        Object.keys(gameState.stocks).forEach(stockId => {
-            const stock = gameState.stocks[stockId];
-            stock.previousPrice = stock.price;
-            
-            const variation = (Math.random() - 0.5) * 0.5; // -25% à +25%
-            stock.price = Math.max(10, stock.price * (1 + variation));
-            stock.price = Math.round(stock.price * 100) / 100;
-            stock.change = stock.price - stock.previousPrice;
-            stock.changePercent = (stock.change / stock.previousPrice) * 100;
-        });
-        updateDisplay();
-        addToHistory('⚡ Mise à jour forcée', 'system');
+        console.log('⚡ Mise à jour forcée avec variations importantes');
+        forceStockUpdate();
     });
     
+    // Transactions
     document.getElementById('executeBtn').addEventListener('click', executeTransaction);
+    
+    // Contrôle de vitesse
     document.getElementById('speedSlider').addEventListener('input', function() {
-        gameState.isTestMode = document.getElementById('speedSlider').value === '1';
+        const slider = document.getElementById('speedSlider');
+        gameState.isTestMode = slider.value === '1';
         updateSpeedDisplay();
+        
+        // Si le jeu est en cours, redémarrer avec le nouveau mode
+        if (gameState.isRunning) {
+            console.log('🔄 Changement de mode détecté - redémarrage...');
+            restartWithNewMode();
+        }
     });
     
     // Initialiser l'affichage du mode
@@ -127,165 +149,348 @@ function setupEventListeners() {
 
 function updateSpeedDisplay() {
     const display = document.getElementById('speedDisplay');
+    const slider = document.getElementById('speedSlider');
+    
+    gameState.isTestMode = slider.value === '1';
+    
     if (gameState.isTestMode) {
         display.textContent = 'Mode Test - Variations toutes les 10 secondes';
+        display.className = 'speed-display test-mode';
     } else {
         display.textContent = 'Mode Jeu - Variations aléatoires (5min à 1h30)';
+        display.className = 'speed-display game-mode';
     }
 }
 
-function startGameSimple() {
-    console.log('🚀 DÉMARRAGE ULTRA-SIMPLE');
+// ============================================================================
+// CONTRÔLES DU JEU
+// ============================================================================
+
+function startGame() {
+    console.log('🚀 Démarrage du jeu');
     
-    // STOPPER ABSOLUMENT TOUT
-    if (gameState.updateInterval) {
-        console.log('🧹 Nettoyage interval existant...');
-        clearInterval(gameState.updateInterval);
-        clearTimeout(gameState.updateInterval);
-        gameState.updateInterval = null;
-    }
-    if (gameState.timerInterval) {
-        console.log('� Nettoyage timer existant...');
-        clearInterval(gameState.timerInterval);
-        gameState.timerInterval = null;
-    }
+    // Nettoyer tous les intervals existants
+    stopAllIntervals();
     
-    // Lire le mode
+    // Lire le mode depuis le slider
     const slider = document.getElementById('speedSlider');
     gameState.isTestMode = slider.value === '1';
     
-    console.log('📊 Mode détecté:', gameState.isTestMode ? 'TEST' : 'JEU');
-    console.log('📊 Slider value:', `"${slider.value}"`);
-    console.log('📊 TEST_UPDATE_INTERVAL:', CONFIG.TEST_UPDATE_INTERVAL);
+    console.log(`📊 Mode sélectionné: ${gameState.isTestMode ? 'TEST' : 'JEU'}`);
     
-    // Mise à jour de l'état
+    // Mettre à jour l'état
     gameState.isRunning = true;
     gameState.startTime = Date.now();
     
-    // Interface
+    // Mettre à jour l'interface
     document.getElementById('startBtn').disabled = true;
     document.getElementById('pauseBtn').disabled = false;
     document.getElementById('status').textContent = 'En cours';
     
-    // DÉMARRAGE DU SYSTÈME DE MISE À JOUR - VERSION SIMPLIFIÉE QUI MARCHE
-    if (gameState.isTestMode) {
-        console.log('⚡ CRÉATION DU SETINTERVAL POUR TEST');
-        
-        // UTILISER LA MÊME LOGIQUE QUE DANS LA VERSION QUI MARCHE
-        gameState.updateInterval = setInterval(() => {
-            console.log('🔄 INTERVAL AUTOMATIQUE DÉCLENCHÉ!');
-            updateStockPrices();
-        }, CONFIG.TEST_UPDATE_INTERVAL);
-        
-        console.log('📝 setInterval créé avec ID:', gameState.updateInterval);
-        console.log('📝 Intervalle configuré pour:', CONFIG.TEST_UPDATE_INTERVAL, 'ms');
-        
-    } else {
-        console.log('🎲 Mode jeu - programmation aléatoire');
-        scheduleNextUpdate();
-    }
+    // Démarrer les mises à jour automatiques
+    startPriceUpdates();
     
-    // Timer pour l'affichage du temps
+    // Démarrer le timer d'affichage
     gameState.timerInterval = setInterval(updateTimer, 1000);
     
-    addToHistory('🚀 Activité démarrée', 'system');
-    console.log('✅ DÉMARRAGE TERMINÉ');
+    // Ajouter à l'historique
+    const modeText = gameState.isTestMode ? 'test' : 'jeu';
+    addToHistory(`🚀 Activité démarrée en mode ${modeText}`, 'system');
+    
+    console.log('✅ Jeu démarré avec succès');
 }
 
-// FONCTION startGame() SUPPRIMÉE - utilisez startGameSimple() à la place
-
 function pauseGame() {
+    console.log('⏸️ Pause du jeu');
+    
     gameState.isRunning = false;
     
+    // Arrêter tous les intervals
+    stopAllIntervals();
+    
+    // Mettre à jour l'interface
     document.getElementById('startBtn').disabled = false;
     document.getElementById('pauseBtn').disabled = true;
     document.getElementById('status').textContent = 'En pause';
     
-    // Arrêter les mises à jour (gestion robuste pour interval ET timeout)
-    if (gameState.updateInterval) {
-        clearInterval(gameState.updateInterval);
-        clearTimeout(gameState.updateInterval);
-        gameState.updateInterval = null;
-    }
-    
-    if (gameState.timerInterval) {
-        clearInterval(gameState.timerInterval);
-        gameState.timerInterval = null;
-    }
-    
     addToHistory('⏸️ Activité mise en pause', 'system');
-    console.log('⏸️ Jeu mis en pause');
+    console.log('✅ Jeu mis en pause');
 }
 
 function resetGame() {
-    // Arrêter le jeu s'il était en cours
+    console.log('🔄 Reset du jeu');
+    
+    // Arrêter le jeu si nécessaire
     if (gameState.isRunning) {
         pauseGame();
     }
     
     // Réinitialiser complètement
-    initializeGameSimple();
+    initializeGame();
     updateDisplay();
     
+    // Remettre l'interface à zéro
     document.getElementById('startBtn').disabled = false;
     document.getElementById('pauseBtn').disabled = true;
     document.getElementById('status').textContent = 'Arrêté';
     document.getElementById('timer').textContent = '00:00:00';
     
     addToHistory('🔄 Jeu réinitialisé', 'system');
+    console.log('✅ Jeu réinitialisé');
 }
 
+function restartWithNewMode() {
+    // Sauvegarder l'état actuel
+    const wasRunning = gameState.isRunning;
+    
+    if (wasRunning) {
+        // Arrêter les intervals sans changer l'état
+        stopAllIntervals();
+        
+        // Redémarrer avec le nouveau mode
+        startPriceUpdates();
+        
+        const modeText = gameState.isTestMode ? 'test' : 'jeu';
+        addToHistory(`🔧 Mode changé vers ${modeText}`, 'system');
+    }
+}
+
+// ============================================================================
+// SYSTÈME DE MISE À JOUR DES PRIX
+// ============================================================================
+
+function startPriceUpdates() {
+    // S'assurer qu'aucun interval n'est déjà en cours
+    if (gameState.updateInterval) {
+        clearInterval(gameState.updateInterval);
+        clearTimeout(gameState.updateInterval);
+        gameState.updateInterval = null;
+    }
+    
+    if (gameState.isTestMode) {
+        console.log('⚡ Démarrage des mises à jour en mode test');
+        
+        // Mode test: interval régulier
+        gameState.updateInterval = setInterval(() => {
+            if (gameState.isRunning) {
+                console.log('🔄 Mise à jour automatique (mode test)');
+                updateStockPrices();
+            }
+        }, CONFIG.TEST_UPDATE_INTERVAL);
+        
+        console.log(`📝 Interval créé: mises à jour toutes les ${CONFIG.TEST_UPDATE_INTERVAL/1000} secondes`);
+        
+    } else {
+        console.log('🎲 Démarrage des mises à jour en mode jeu');
+        scheduleNextRandomUpdate();
+    }
+}
+
+function scheduleNextRandomUpdate() {
+    // Calculer un délai aléatoire
+    const randomDelay = CONFIG.GAME_MIN_INTERVAL + 
+        Math.random() * (CONFIG.GAME_MAX_INTERVAL - CONFIG.GAME_MIN_INTERVAL);
+    
+    console.log(`⏰ Prochaine mise à jour dans ${Math.round(randomDelay/1000)} secondes`);
+    
+    gameState.updateInterval = setTimeout(() => {
+        if (gameState.isRunning && !gameState.isTestMode) {
+            console.log('🎲 Mise à jour programmée déclenchée');
+            updateStockPrices();
+            scheduleNextRandomUpdate(); // Programmer la suivante
+        }
+    }, randomDelay);
+    
+    // Ajouter info dans l'historique
+    const nextTime = new Date(Date.now() + randomDelay);
+    addToHistory(`⏰ Prochaine variation à ${nextTime.toLocaleTimeString('fr-FR')}`, 'system');
+}
+
+function stopAllIntervals() {
+    if (gameState.updateInterval) {
+        clearInterval(gameState.updateInterval);
+        clearTimeout(gameState.updateInterval);
+        gameState.updateInterval = null;
+        console.log('🧹 Intervals de mise à jour arrêtés');
+    }
+    
+    if (gameState.timerInterval) {
+        clearInterval(gameState.timerInterval);
+        gameState.timerInterval = null;
+        console.log('🧹 Timer d\'affichage arrêté');
+    }
+}
+
+// ============================================================================
+// MISE À JOUR DES PRIX
+// ============================================================================
+
 function updateStockPrices() {
-    console.log('🔄 Mise à jour des cours déclenchée !');
+    console.log('📈 Mise à jour des cours en cours...');
+    
+    let changesCount = 0;
+    
+    Object.keys(gameState.stocks).forEach(stockId => {
+        const stock = gameState.stocks[stockId];
+        const oldPrice = stock.price;
+        
+        // Sauvegarder l'ancien prix
+        stock.previousPrice = oldPrice;
+        
+        // Calculer la nouvelle variation
+        const newPrice = calculateNewPrice(stock, stockId);
+        
+        // Appliquer le nouveau prix
+        stock.price = Math.round(newPrice * 100) / 100;
+        stock.change = stock.price - stock.previousPrice;
+        stock.changePercent = (stock.change / stock.previousPrice) * 100;
+        
+        if (Math.abs(stock.change) > 0.01) {
+            changesCount++;
+        }
+        
+        console.log(`  ${stock.name}: ${oldPrice.toFixed(2)} → ${stock.price.toFixed(2)} (${stock.changePercent.toFixed(1)}%)`);
+    });
+    
+    // Mettre à jour l'affichage
+    updateDisplay();
+    
+    // Ajouter à l'historique
+    const modeText = gameState.isTestMode ? 'test' : 'jeu';
+    addToHistory(`📊 ${changesCount} cours mis à jour (mode ${modeText})`, 'system');
+    
+    console.log(`✅ Mise à jour terminée: ${changesCount} prix modifiés`);
+}
+
+function calculateNewPrice(stock, stockId) {
+    const initialPrice = stock.initialPrice;
+    const currentPrice = stock.price;
+    
+    // Facteur de retour à la moyenne
+    const deviation = (currentPrice - initialPrice) / initialPrice;
+    let meanReversion = 0;
+    if (Math.abs(deviation) > 0.2) {
+        meanReversion = -deviation * 0.3;
+    }
+    
+    // Influence des investissements
+    const totalInvested = gameState.totalInvestments[stockId] || 0;
+    const investmentInfluence = Math.min(totalInvested / 100, 0.1);
+    
+    // Variation aléatoire de base
+    const randomVariation = (Math.random() - 0.5) * 0.3; // -15% à +15%
+    
+    // Variation finale
+    const totalVariation = randomVariation + meanReversion - investmentInfluence;
+    
+    // Calculer le nouveau prix avec limites
+    let newPrice = currentPrice * (1 + totalVariation);
+    
+    // Limites absolues
+    const minPrice = initialPrice * 0.1;  // Minimum 10% du prix initial
+    const maxPrice = initialPrice * 5.0;  // Maximum 500% du prix initial
+    
+    return Math.max(minPrice, Math.min(maxPrice, newPrice));
+}
+
+function forceStockUpdate() {
+    console.log('⚡ Mise à jour forcée avec grandes variations');
     
     Object.keys(gameState.stocks).forEach(stockId => {
         const stock = gameState.stocks[stockId];
         stock.previousPrice = stock.price;
         
-        // NOUVELLE LOGIQUE : Retour à la moyenne pour éviter les tendances infinies
-        const initialPrice = stock.initialPrice;
-        const currentDeviation = (stock.price - initialPrice) / initialPrice;
+        // Variation plus importante pour les tests
+        const variation = (Math.random() - 0.5) * 0.6; // -30% à +30%
+        let newPrice = stock.price * (1 + variation);
         
-        // Plus on s'éloigne du prix initial, plus on a tendance à revenir
-        let meanReversionFactor = 0;
-        if (Math.abs(currentDeviation) > 0.3) { // Si > 30% du prix initial
-            meanReversionFactor = -currentDeviation * 0.3; // Force de rappel vers la moyenne
-        }
-        
-        // Calculer l'influence des investissements
-        const totalInvested = gameState.totalInvestments[stockId] || 0;
-        const investmentInfluence = Math.min(totalInvested / 50, 0.15); // Max -15% d'influence
-        
-        // Variation de base moins forte pour éviter les mouvements extrêmes
-        const baseVariation = (Math.random() - 0.5) * 0.2; // Réduit de 0.4 à 0.2 (-10% à +10%)
-        
-        // Ajouter une petite composante de momentum (30% de la variation précédente)
-        const momentum = stock.changePercent ? (stock.changePercent / 100) * 0.3 : 0;
-        
-        // Variation finale avec tous les facteurs
-        const finalVariation = baseVariation + meanReversionFactor - investmentInfluence + momentum;
-        
-        // Appliquer la variation avec des limites strictes
-        const newPrice = stock.price * (1 + finalVariation);
-        
-        // Prix minimum et maximum pour éviter les extrêmes
-        const minPrice = initialPrice * 0.2; // Jamais moins de 20% du prix initial
-        const maxPrice = initialPrice * 3.0;  // Jamais plus de 300% du prix initial
+        // Limites
+        const minPrice = stock.initialPrice * 0.2;
+        const maxPrice = stock.initialPrice * 4.0;
         
         stock.price = Math.max(minPrice, Math.min(maxPrice, newPrice));
-        stock.price = Math.round(stock.price * 100) / 100; // Arrondir à 2 décimales
-        
+        stock.price = Math.round(stock.price * 100) / 100;
         stock.change = stock.price - stock.previousPrice;
         stock.changePercent = (stock.change / stock.previousPrice) * 100;
-        
-        console.log(`${stock.name}: ${stock.previousPrice.toFixed(2)} → ${stock.price.toFixed(2)} (${stock.changePercent.toFixed(1)}%) [dév: ${(currentDeviation * 100).toFixed(1)}%]`);
     });
     
     updateDisplay();
+    addToHistory('⚡ Mise à jour forcée appliquée', 'system');
+}
+
+// ============================================================================
+// TRANSACTIONS
+// ============================================================================
+
+function executeTransaction() {
+    const teamId = document.getElementById('teamSelect').value;
+    const stockId = document.getElementById('stockSelect').value;
+    const action = document.getElementById('actionSelect').value;
+    const quantity = parseInt(document.getElementById('quantityInput').value);
     
-    const modeText = gameState.isTestMode ? 'test' : 'jeu';
-    addToHistory(`📊 Cours mis à jour (mode ${modeText})`, 'system');
-    console.log('✅ Mise à jour terminée');
+    // Validation des données
+    if (!teamId || !stockId || !quantity || quantity <= 0) {
+        alert('Veuillez remplir tous les champs avec des valeurs valides.');
+        return;
+    }
+    
+    const team = gameState.teams[teamId];
+    const stock = gameState.stocks[stockId];
+    const totalCost = stock.price * quantity;
+    
+    if (action === 'buy') {
+        // Vérifier si l'équipe a assez de points
+        if (team.points < totalCost) {
+            alert(`❌ Pas assez de points!\nCoût: ${totalCost.toFixed(2)} points\nDisponible: ${team.points.toFixed(2)} points`);
+            return;
+        }
+        
+        // Effectuer l'achat
+        team.points -= totalCost;
+        team.portfolio[stockId] = (team.portfolio[stockId] || 0) + quantity;
+        gameState.totalInvestments[stockId] += quantity;
+        
+        addToHistory(`🛒 ${team.name} achète ${quantity} ${stock.name} pour ${totalCost.toFixed(2)} pts`, 'buy');
+        console.log(`✅ Achat effectué: ${team.name} - ${quantity} ${stock.name}`);
+        
+    } else { // sell
+        // Vérifier si l'équipe a assez d'actions
+        const owned = team.portfolio[stockId] || 0;
+        if (owned < quantity) {
+            alert(`❌ Pas assez d'actions!\nDemandé: ${quantity}\nDisponible: ${owned}`);
+            return;
+        }
+        
+        // Effectuer la vente
+        team.points += totalCost;
+        team.portfolio[stockId] -= quantity;
+        gameState.totalInvestments[stockId] = Math.max(0, gameState.totalInvestments[stockId] - quantity);
+        
+        addToHistory(`💰 ${team.name} vend ${quantity} ${stock.name} pour ${totalCost.toFixed(2)} pts`, 'sell');
+        console.log(`✅ Vente effectuée: ${team.name} - ${quantity} ${stock.name}`);
+    }
+    
+    // Nettoyer le formulaire
+    document.getElementById('quantityInput').value = '';
+    
+    // Mettre à jour l'affichage
+    updateDisplay();
+}
+
+// ============================================================================
+// CALCULS ET UTILITAIRES
+// ============================================================================
+
+function calculateTeamValue(team) {
+    let totalValue = team.points;
+    
+    Object.keys(team.portfolio).forEach(stockId => {
+        const quantity = team.portfolio[stockId] || 0;
+        const stockPrice = gameState.stocks[stockId].price;
+        totalValue += quantity * stockPrice;
+    });
+    
+    return totalValue;
 }
 
 function updateTimer() {
@@ -300,67 +505,6 @@ function updateTimer() {
     document.getElementById('timer').textContent = timeString;
 }
 
-function executeTransaction() {
-    const teamId = document.getElementById('teamSelect').value;
-    const stockId = document.getElementById('stockSelect').value;
-    const action = document.getElementById('actionSelect').value;
-    const quantity = parseInt(document.getElementById('quantityInput').value);
-    
-    if (!teamId || !stockId || !quantity || quantity <= 0) {
-        alert('Veuillez remplir tous les champs avec des valeurs valides.');
-        return;
-    }
-    
-    const team = gameState.teams[teamId];
-    const stock = gameState.stocks[stockId];
-    const totalCost = stock.price * quantity;
-    
-    if (action === 'buy') {
-        if (team.points < totalCost) {
-            alert(`Pas assez de points ! Coût: ${totalCost.toFixed(2)}, Points disponibles: ${team.points.toFixed(2)}`);
-            return;
-        }
-        
-        team.points -= totalCost;
-        team.portfolio[stockId] += quantity;
-        
-        // Mettre à jour le tracker d'investissements
-        gameState.totalInvestments[stockId] += quantity;
-        
-        addToHistory(`${team.name} achète ${quantity} ${stock.name} pour ${totalCost.toFixed(2)} points`, 'buy');
-    } else { // sell
-        if (team.portfolio[stockId] < quantity) {
-            alert(`Pas assez d'actions ! Actions disponibles: ${team.portfolio[stockId]}`);
-            return;
-        }
-        
-        team.points += totalCost;
-        team.portfolio[stockId] -= quantity;
-        
-        // Mettre à jour le tracker d'investissements
-        gameState.totalInvestments[stockId] = Math.max(0, gameState.totalInvestments[stockId] - quantity);
-        
-        addToHistory(`${team.name} vend ${quantity} ${stock.name} pour ${totalCost.toFixed(2)} points`, 'sell');
-    }
-    
-    // Réinitialiser le formulaire
-    document.getElementById('quantityInput').value = '';
-    
-    updateDisplay();
-}
-
-function calculateTeamValue(team) {
-    let totalValue = team.points;
-    
-    Object.keys(team.portfolio).forEach(stockId => {
-        const quantity = team.portfolio[stockId];
-        const stockPrice = gameState.stocks[stockId].price;
-        totalValue += quantity * stockPrice;
-    });
-    
-    return totalValue;
-}
-
 function addToHistory(message, type) {
     const timestamp = new Date().toLocaleTimeString('fr-FR');
     gameState.history.unshift({
@@ -369,11 +513,15 @@ function addToHistory(message, type) {
         type: type
     });
     
-    // Garder seulement les 50 dernières entrées
+    // Limiter l'historique à 50 entrées
     if (gameState.history.length > 50) {
         gameState.history = gameState.history.slice(0, 50);
     }
 }
+
+// ============================================================================
+// AFFICHAGE ET INTERFACE
+// ============================================================================
 
 function updateDisplay() {
     updateStocksDisplay();
@@ -385,6 +533,8 @@ function updateDisplay() {
 
 function updateStocksDisplay() {
     const stocksGrid = document.getElementById('stocksGrid');
+    if (!stocksGrid) return;
+    
     stocksGrid.innerHTML = '';
     
     Object.values(gameState.stocks).forEach(stock => {
@@ -404,16 +554,18 @@ function updateStocksDisplay() {
         
         stocksGrid.appendChild(stockCard);
         
-        // Animation pour les changements de prix
-        if (stock.change !== 0) {
+        // Animation pour les changements
+        if (Math.abs(stock.change) > 0.01) {
             stockCard.classList.add('updating');
-            setTimeout(() => stockCard.classList.remove('updating'), 500);
+            setTimeout(() => stockCard.classList.remove('updating'), 1000);
         }
     });
 }
 
 function updateTeamsDisplay() {
     const teamsGrid = document.getElementById('teamsGrid');
+    if (!teamsGrid) return;
+    
     teamsGrid.innerHTML = '';
     
     Object.values(gameState.teams).forEach(team => {
@@ -421,10 +573,12 @@ function updateTeamsDisplay() {
         teamCard.className = 'team-card';
         
         const totalValue = calculateTeamValue(team);
+        const tokens = Math.floor(totalValue / 50);
         
+        // Générer le HTML du portfolio
         let portfolioHTML = '';
         Object.keys(team.portfolio).forEach(stockId => {
-            const quantity = team.portfolio[stockId];
+            const quantity = team.portfolio[stockId] || 0;
             if (quantity > 0) {
                 const stock = gameState.stocks[stockId];
                 const value = quantity * stock.price;
@@ -445,8 +599,8 @@ function updateTeamsDisplay() {
         teamCard.innerHTML = `
             <div class="team-name">${team.name}</div>
             <div class="team-points">💰 ${team.points.toFixed(2)} points</div>
-            <div>📊 Valeur totale: <strong>${totalValue.toFixed(2)} points</strong></div>
-            <div>🎫 Jetons: <strong>${Math.floor(totalValue / 50)} jetons</strong></div>
+            <div class="team-total">📊 Valeur totale: <strong>${totalValue.toFixed(2)} points</strong></div>
+            <div class="team-tokens">🎫 Jetons: <strong>${tokens} jetons</strong></div>
             <div class="team-portfolio">
                 <strong>Portefeuille:</strong>
                 ${portfolioHTML}
@@ -458,35 +612,41 @@ function updateTeamsDisplay() {
 }
 
 function updateSelects() {
-    // Mettre à jour le sélecteur d'équipe
+    // Sélecteur d'équipe
     const teamSelect = document.getElementById('teamSelect');
-    const currentTeam = teamSelect.value;
-    teamSelect.innerHTML = '<option value="">Sélectionner une équipe</option>';
+    if (teamSelect) {
+        const currentTeam = teamSelect.value;
+        teamSelect.innerHTML = '<option value="">Sélectionner une équipe</option>';
+        
+        Object.values(gameState.teams).forEach(team => {
+            const option = document.createElement('option');
+            option.value = team.id;
+            option.textContent = team.name;
+            if (team.id === currentTeam) option.selected = true;
+            teamSelect.appendChild(option);
+        });
+    }
     
-    Object.values(gameState.teams).forEach(team => {
-        const option = document.createElement('option');
-        option.value = team.id;
-        option.textContent = team.name;
-        if (team.id === currentTeam) option.selected = true;
-        teamSelect.appendChild(option);
-    });
-    
-    // Mettre à jour le sélecteur d'action
+    // Sélecteur d'action
     const stockSelect = document.getElementById('stockSelect');
-    const currentStock = stockSelect.value;
-    stockSelect.innerHTML = '<option value="">Sélectionner une action</option>';
-    
-    Object.values(gameState.stocks).forEach(stock => {
-        const option = document.createElement('option');
-        option.value = stock.id;
-        option.textContent = `${stock.name} (${stock.price.toFixed(2)} pts)`;
-        if (stock.id === currentStock) option.selected = true;
-        stockSelect.appendChild(option);
-    });
+    if (stockSelect) {
+        const currentStock = stockSelect.value;
+        stockSelect.innerHTML = '<option value="">Sélectionner une action</option>';
+        
+        Object.values(gameState.stocks).forEach(stock => {
+            const option = document.createElement('option');
+            option.value = stock.id;
+            option.textContent = `${stock.name} (${stock.price.toFixed(2)} pts)`;
+            if (stock.id === currentStock) option.selected = true;
+            stockSelect.appendChild(option);
+        });
+    }
 }
 
 function updateHistoryDisplay() {
     const historyContainer = document.getElementById('history');
+    if (!historyContainer) return;
+    
     historyContainer.innerHTML = '';
     
     if (gameState.history.length === 0) {
@@ -509,19 +669,21 @@ function updateHistoryDisplay() {
 
 function updateLeaderboard() {
     const leaderboardBody = document.getElementById('leaderboardBody');
+    if (!leaderboardBody) return;
+    
     leaderboardBody.innerHTML = '';
     
-    // Créer un tableau avec les équipes et leurs valeurs
+    // Créer le tableau des équipes avec leurs valeurs
     const teamsArray = Object.values(gameState.teams).map(team => ({
         ...team,
         totalValue: calculateTeamValue(team),
         tokens: Math.floor(calculateTeamValue(team) / 50)
     }));
     
-    // Trier par valeur totale décroissante
+    // Trier par valeur décroissante
     teamsArray.sort((a, b) => b.totalValue - a.totalValue);
     
-    // Générer les lignes du tableau
+    // Générer les lignes
     teamsArray.forEach((team, index) => {
         const row = document.createElement('tr');
         const position = index + 1;
@@ -551,112 +713,68 @@ function updateLeaderboard() {
     });
 }
 
-// Sauvegarder/charger l'état du jeu dans le localStorage
+// ============================================================================
+// SAUVEGARDE ET FONCTIONS DEBUG
+// ============================================================================
+
 function saveGameState() {
-    // Ne sauvegarder que les données, pas l'état de fonctionnement
     const dataToSave = {
         teams: gameState.teams,
         stocks: gameState.stocks,
         history: gameState.history,
-        totalInvestments: gameState.totalInvestments
+        totalInvestments: gameState.totalInvestments,
+        timestamp: Date.now()
     };
-    localStorage.setItem('actiBourseScout', JSON.stringify(dataToSave));
-    console.log('💾 État sauvegardé');
+    
+    try {
+        localStorage.setItem('actiBourseScout', JSON.stringify(dataToSave));
+        console.log('💾 État sauvegardé automatiquement');
+    } catch (error) {
+        console.error('❌ Erreur de sauvegarde:', error);
+    }
 }
 
-// Ajouter une fonction debug au window
-window.debugGameState = function() {
-    console.log('🔍 DIAGNOSTIC COMPLET:');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('📊 État du jeu:');
-    console.log('- isRunning:', gameState.isRunning);
-    console.log('- isTestMode:', gameState.isTestMode);
-    console.log('- updateInterval:', gameState.updateInterval);
-    console.log('- timerInterval:', gameState.timerInterval);
-    console.log('- startTime:', gameState.startTime);
-    
-    console.log('📈 Stocks:');
-    Object.values(gameState.stocks).forEach(stock => {
-        console.log(`  ${stock.name}: ${stock.price.toFixed(2)} pts (${stock.changePercent.toFixed(1)}%)`);
-    });
-    
-    console.log('👥 Équipes:');
-    Object.values(gameState.teams).forEach(team => {
-        const totalValue = calculateTeamValue(team);
-        console.log(`  ${team.name}: ${team.points.toFixed(2)} pts cash, ${totalValue.toFixed(2)} pts total`);
-    });
-    
-    const slider = document.getElementById('speedSlider');
-    console.log('🎛️ Interface:');
-    console.log('- Slider value:', slider?.value);
-    console.log('- Slider = Test mode?', slider?.value === '1');
-    
-    if (gameState.isRunning && gameState.isTestMode) {
-        console.log('⚡ Mode test actif - devrait se MAJ toutes les', CONFIG.TEST_UPDATE_INTERVAL, 'ms');
-        console.log('⚠️  Si les prix ne changent pas, il y a un problème avec setInterval!');
-    }
-    
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-};
-
-// Fonction pour forcer un redémarrage propre
-window.forceRestart = function() {
-    console.log('🔄 REDÉMARRAGE FORCÉ...');
-    if (gameState.isRunning) {
-        pauseGame();
-    }
-    
-    // Nettoyer tous les intervals
-    clearInterval(gameState.updateInterval);
-    clearTimeout(gameState.updateInterval);
-    clearInterval(gameState.timerInterval);
-    
-    gameState.updateInterval = null;
-    gameState.timerInterval = null;
-    gameState.isRunning = false;
-    
-    console.log('✅ Nettoyage terminé - vous pouvez redémarrer');
-};
-
-// SUPPRESSION DE TOUT LE SYSTÈME DE CHARGEMENT COMPLEXE
-// Gardons seulement la sauvegarde automatique simple
+// Sauvegarde automatique toutes les 30 secondes
 setInterval(saveGameState, 30000);
 
-function updateSpeedMode() {
-    const slider = document.getElementById('speedSlider');
-    const display = document.getElementById('speedDisplay');
+// Fonctions debug accessibles globalement
+window.debugGameState = function() {
+    console.log('🔍 DIAGNOSTIC ACTIBOURSE:');
+    console.log('═══════════════════════════════════');
+    console.log('📊 État général:');
+    console.log('- Jeu en cours:', gameState.isRunning);
+    console.log('- Mode test:', gameState.isTestMode);
+    console.log('- Interval actif:', !!gameState.updateInterval);
+    console.log('- Timer actif:', !!gameState.timerInterval);
     
-    gameState.isTestMode = slider.value === '1';
-    
-    console.log(`🔧 Mode changé: ${gameState.isTestMode ? 'Test' : 'Jeu'} (slider value: ${slider.value})`);
-    
-    if (gameState.isTestMode) {
-        display.textContent = 'Mode Test - Variations toutes les 10 secondes';
-    } else {
-        display.textContent = 'Mode Jeu - Variations aléatoires (5min à 1h30)';
+    if (gameState.startTime) {
+        const elapsed = Math.round((Date.now() - gameState.startTime) / 1000);
+        console.log('- Temps écoulé:', elapsed, 'secondes');
     }
     
-    // PAS de redémarrage automatique - trop complexe
-    console.log('ℹ️ Changement de mode - redémarrez manuellement pour appliquer');
-}
+    console.log('📈 Actions:', Object.keys(gameState.stocks).length);
+    console.log('👥 Équipes:', Object.keys(gameState.teams).length);
+    console.log('📝 Historique:', gameState.history.length, 'entrées');
+    console.log('═══════════════════════════════════');
+};
 
-function scheduleNextUpdate() {
-    // Calculer un délai aléatoire entre 5min et 1h30
-    const randomDelay = CONFIG.GAME_MIN_INTERVAL + 
-        Math.random() * (CONFIG.GAME_MAX_INTERVAL - CONFIG.GAME_MIN_INTERVAL);
-    
-    gameState.nextUpdateTime = Date.now() + randomDelay;
-    
-    console.log(`⏰ Prochaine mise à jour programmée dans ${Math.round(randomDelay/1000)} secondes`);
-    
-    gameState.updateInterval = setTimeout(() => {
-        if (gameState.isRunning) {
-            console.log('🎲 Déclenchement de la mise à jour programmée');
-            updateStockPrices();
-            scheduleNextUpdate(); // Programmer la prochaine mise à jour
-        }
-    }, randomDelay);
-    
-    const nextUpdateDate = new Date(gameState.nextUpdateTime);
-    addToHistory(`⏰ Prochaine variation programmée à ${nextUpdateDate.toLocaleTimeString('fr-FR')}`, 'system');
-}
+window.forceUpdate = function() {
+    console.log('🧪 Mise à jour forcée manuelle');
+    updateStockPrices();
+};
+
+window.resetApp = function() {
+    console.log('🔄 Reset complet de l\'application');
+    resetGame();
+};
+
+// Fonction de nettoyage d'urgence
+window.emergencyStop = function() {
+    console.log('🚨 ARRÊT D\'URGENCE');
+    gameState.isRunning = false;
+    stopAllIntervals();
+    console.log('✅ Tous les intervals arrêtés');
+};
+
+console.log('🚀 ActiBourseScout chargé - Version refonte complète');
+console.log('📖 Commandes debug disponibles: debugGameState(), forceUpdate(), resetApp(), emergencyStop()');
