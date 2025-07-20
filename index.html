@@ -3,191 +3,122 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ActiBourseScout - Simulation de Bourse</title>
+    <title>🏕️ ActiBourseScout - Camp 2025</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>🏕️ ActiBourseScout</h1>
-            <p>Simulation de bourse pour activité scout</p>
+        <!-- En-tête avec indicateur de connexion -->
+        <header class="header">
+            <div class="title-section">
+                <h1>🏕️ ActiBourseScout</h1>
+                <p>Simulation de bourse pour activité scout</p>
+            </div>
+            <div id="connectionStatus" class="connection-status offline">🔴 Hors ligne</div>
         </header>
 
-        <div class="controls">
-            <button id="startBtn" class="btn btn-success">▶️ Démarrer l'activité</button>
-            <button id="pauseBtn" class="btn btn-warning" disabled>⏸️ Pause</button>
-            <button id="resetBtn" class="btn btn-danger">🔄 Reset</button>
-            <button id="testUpdateBtn" class="btn btn-info">🧪 Test Mise à Jour</button>
-            <button id="forceUpdateBtn" class="btn btn-secondary">⚡ Mise à Jour Forcée</button>
-            <div class="speed-control">
-                <label for="speedSlider">Mode de jeu :</label>
-                <div class="slider-container">
-                    <span class="slider-label">🎮 Jeu (aléatoire)</span>
-                    <input type="range" id="speedSlider" min="0" max="1" value="1" step="1">
-                    <span class="slider-label">🧪 Test (10s)</span>
+        <!-- Contrôles -->
+        <section class="controls-section">
+            <h2>🎮 Contrôles</h2>
+            
+            <div class="control-group">
+                <div class="speed-control">
+                    <label for="speedSlider">Vitesse des mises à jour:</label>
+                    <input type="range" id="speedSlider" min="1" max="2" value="1" class="slider">
+                    <div id="speedDisplay" class="speed-display">Mode Test - Variations toutes les 10 secondes</div>
                 </div>
-                <div id="speedDisplay">Mode Test - Variations toutes les 10 secondes</div>
+                
+                <button id="testUpdateBtn" class="btn btn-test">📊 Mettre à jour les cours (Manuel)</button>
             </div>
-            <div class="status">
-                <span id="status">Arrêté</span>
-                <span id="timer">00:00:00</span>
-            </div>
-        </div>
 
-        <div class="market-section">
+            <div class="control-buttons">
+                <button id="startBtn" class="btn btn-start">▶️ Démarrer</button>
+                <button id="pauseBtn" class="btn btn-pause" disabled>⏸️ Pause</button>
+                <button id="resetBtn" class="btn btn-reset">🔄 Reset</button>
+                <button id="forceUpdateBtn" class="btn btn-force">⚡ Force Update</button>
+            </div>
+
+            <div class="status-info">
+                <div class="status-item">
+                    <span>📊 Statut:</span>
+                    <span id="status">Arrêté</span>
+                </div>
+                <div class="status-item">
+                    <span>⏱️ Temps écoulé:</span>
+                    <span id="timer">00:00:00</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Marché des Actions -->
+        <section class="stocks-section">
             <h2>📈 Marché des Actions</h2>
-            <div class="stocks-grid" id="stocksGrid">
-                <!-- Les actions seront générées dynamiquement -->
+            <div id="stocksGrid" class="stocks-grid">
+                <!-- Généré dynamiquement -->
             </div>
-        </div>
+        </section>
 
-        <div class="teams-section">
+        <!-- Équipes -->
+        <section class="teams-section">
             <h2>👥 Équipes</h2>
-            <div class="teams-grid" id="teamsGrid">
-                <!-- Les équipes seront générées dynamiquement -->
+            <div id="teamsGrid" class="teams-grid">
+                <!-- Généré dynamiquement -->
             </div>
-        </div>
+        </section>
 
-        <div class="leaderboard-section">
-            <h2>🏆 Tableau des Jetons</h2>
-            <div class="leaderboard-table">
-                <table id="leaderboardTable">
+        <!-- Transactions -->
+        <section class="transactions-section">
+            <h2>💰 Transactions</h2>
+            <div class="transaction-form">
+                <select id="teamSelect" class="form-select">
+                    <option value="">Sélectionner une équipe</option>
+                </select>
+                
+                <select id="stockSelect" class="form-select">
+                    <option value="">Sélectionner une action</option>
+                </select>
+                
+                <select id="actionSelect" class="form-select">
+                    <option value="buy">🛒 Acheter</option>
+                    <option value="sell">💰 Vendre</option>
+                </select>
+                
+                <input type="number" id="quantityInput" placeholder="Quantité" min="1" class="form-input">
+                
+                <button id="executeBtn" class="btn btn-execute">✅ Exécuter</button>
+            </div>
+        </section>
+
+        <!-- Classement -->
+        <section class="leaderboard-section">
+            <h2>🏆 Classement</h2>
+            <div class="table-container">
+                <table class="leaderboard-table">
                     <thead>
                         <tr>
                             <th>Position</th>
                             <th>Équipe</th>
-                            <th>Valeur Totale (Points)</th>
-                            <th>Jetons Gagnés</th>
+                            <th>Valeur totale</th>
+                            <th>Jetons</th>
                         </tr>
                     </thead>
                     <tbody id="leaderboardBody">
-                        <!-- Le classement sera généré dynamiquement -->
+                        <!-- Généré dynamiquement -->
                     </tbody>
                 </table>
             </div>
-        </div>
+        </section>
 
-        <div class="transaction-section">
-            <h2>💰 Nouvelle Transaction</h2>
-            <div class="transaction-form">
-                <select id="teamSelect">
-                    <option value="">Sélectionner une équipe</option>
-                </select>
-                <select id="stockSelect">
-                    <option value="">Sélectionner une action</option>
-                </select>
-                <select id="actionSelect">
-                    <option value="buy">Acheter</option>
-                    <option value="sell">Vendre</option>
-                </select>
-                <input type="number" id="quantityInput" placeholder="Quantité" min="1" step="1">
-                <button id="executeBtn" class="btn btn-primary">Exécuter</button>
+        <!-- Historique -->
+        <section class="history-section">
+            <h2>📜 Historique</h2>
+            <div id="history" class="history-container">
+                <!-- Généré dynamiquement -->
             </div>
-        </div>
-
-        <div class="history-section">
-            <h2>📋 Historique des Transactions</h2>
-            <div class="history" id="history">
-                <!-- L'historique sera généré dynamiquement -->
-            </div>
-        </div>
-
-        <div class="dictionary-section">
-            <h2>📚 Dictionnaire - Guide de l'Activité</h2>
-            <div class="dictionary-content">
-                <div class="dictionary-grid">
-                    <div class="dictionary-item">
-                        <div class="dict-term">💰 Points</div>
-                        <div class="dict-definition">
-                            Monnaie virtuelle de l'activité. Chaque équipe commence avec <strong>500 points</strong>. 
-                            Les points servent à acheter des actions et sont récupérés lors de la vente.
-                        </div>
-                    </div>
-
-                    <div class="dictionary-item">
-                        <div class="dict-term">📈 Actions</div>
-                        <div class="dict-definition">
-                            Parts d'entreprises fictives (Mont Blanc 🏔️, Monster 👹, Benco 🍫, Opinel 🔪, Quechua 🏕️, Red Bull 🐂, Patagonia 🧗, Salomon 🥾). 
-                            Prix initial : <strong>50 points chacune</strong>. Les prix fluctuent automatiquement.
-                        </div>
-                    </div>
-
-                    <div class="dictionary-item">
-                        <div class="dict-term">🎫 Jetons</div>
-                        <div class="dict-definition">
-                            Récompenses pour le jeu du soir. <strong>50 points = 1 jeton</strong>. 
-                            Plus votre portefeuille vaut cher, plus vous gagnez de jetons !
-                        </div>
-                    </div>
-
-                    <div class="dictionary-item">
-                        <div class="dict-term">🏪 Portefeuille</div>
-                        <div class="dict-definition">
-                            Ensemble des actions possédées par une équipe + points restants. 
-                            Sa valeur totale détermine le classement et les jetons gagnés.
-                        </div>
-                    </div>
-
-                    <div class="dictionary-item">
-                        <div class="dict-term">📊 Cours/Prix</div>
-                        <div class="dict-definition">
-                            Prix actuel d'une action en points. Varie automatiquement selon l'offre/demande. 
-                            Plus une action est achetée, plus elle tend à baisser.
-                        </div>
-                    </div>
-
-                    <div class="dictionary-item">
-                        <div class="dict-term">🛒 Acheter</div>
-                        <div class="dict-definition">
-                            Échanger des points contre des actions. Coût = Prix × Quantité. 
-                            Exemple : 3 actions Mont Blanc à 45 pts = 135 points.
-                        </div>
-                    </div>
-
-                    <div class="dictionary-item">
-                        <div class="dict-term">💸 Vendre</div>
-                        <div class="dict-definition">
-                            Échanger des actions contre des points au prix actuel. 
-                            Permet de récupérer des points si le cours a monté.
-                        </div>
-                    </div>
-
-                    <div class="dictionary-item">
-                        <div class="dict-term">📈📉 Variations</div>
-                        <div class="dict-definition">
-                            <strong>Mode Test :</strong> Toutes les 10 secondes.<br>
-                            <strong>Mode Jeu :</strong> Aléatoirement entre 5 minutes et 1h30.
-                            Variations : -20% à +20% par mise à jour.
-                        </div>
-                    </div>
-                </div>
-
-                <div class="strategy-tips">
-                    <h3>💡 Conseils Stratégiques</h3>
-                    <ul>
-                        <li><strong>Diversification :</strong> Ne mettez pas tous vos points sur une seule action</li>
-                        <li><strong>Timing :</strong> Achetez quand c'est bas, vendez quand c'est haut</li>
-                        <li><strong>Observation :</strong> Surveillez les tendances et l'activité des autres équipes</li>
-                        <li><strong>Patience :</strong> Les cours remontent souvent après une chute</li>
-                        <li><strong>Risque :</strong> Plus vous investissez tôt, plus vous pouvez gagner (ou perdre)</li>
-                    </ul>
-                </div>
-
-                <div class="example-scenario">
-                    <h3>🎯 Exemple Concret</h3>
-                    <div class="scenario-box">
-                        <p><strong>Situation :</strong> L'équipe 1 a 500 points au départ.</p>
-                        <p><strong>Action :</strong> "On veut acheter 5 actions Mont Blanc à 50 points"</p>
-                        <p><strong>Coût :</strong> 5 × 50 = 250 points</p>
-                        <p><strong>Résultat :</strong> Points restants = 250, Actions = 5 Mont Blanc</p>
-                        <p><strong>Si Mont Blanc monte à 70 points :</strong></p>
-                        <p><strong>Nouvelle valeur :</strong> 250 points + (5 × 70) = 600 points = 12 jetons 🎫</p>
-                    </div>
-                </div>
-            </div>
-        </div>
+        </section>
     </div>
 
-    <script src="script-fixed.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
