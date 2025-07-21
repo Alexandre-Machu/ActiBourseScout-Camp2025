@@ -109,22 +109,14 @@ function setupSocketListeners() {
     });
     
     socket.on('gameState', (data) => {
-        console.log('📥 État reçu du serveur');
-        // Merger sans écraser les intervals locaux
-        gameState.isRunning = data.isRunning || false;
-        gameState.startTime = data.startTime || null;
-        gameState.stocks = data.stocks || {};
-        gameState.teams = data.teams || {};
-        gameState.history = data.history || [];
-        gameState.isTestMode = data.isTestMode || true;
-        gameState.totalInvestments = data.totalInvestments || {};
-        
+        console.log('📋 État reçu du serveur');
+        gameState = data;
         updateDisplay();
-        updateButtons();
         
-        // Synchroniser le timer si nécessaire
-        if (gameState.isRunning && gameState.startTime && !gameState.timerInterval) {
-            startTimer();
+        // ⚠️ FORCER un premier point avec les prix actuels
+        if (stockChart && stockChart.data.labels.length === 0) {
+            console.log('🎯 Premier point graphique forcé');
+            updateChart();
         }
     });
     
@@ -266,180 +258,162 @@ function initializeGame() {
 }
 
 // ========================
-// GRAPHIQUE
+// GRAPHIQUE SIMPLE ET FONCTIONNEL
 // ========================
 
 function initChart() {
     const ctx = document.getElementById('stockChart');
-    if (!ctx || typeof Chart === 'undefined') {
-        console.warn('⚠️ Graphique non disponible (Chart.js manquant ou canvas inexistant)');
+    if (!ctx) {
+        console.warn('⚠️ Canvas stockChart non trouvé');
         return;
     }
     
-    const stockColors = [
-        '#3498db', '#f39c12', '#2ecc71', '#9b59b6', 
-        '#e74c3c', '#1abc9c', '#f1c40f', '#95a5a6'
-    ];
+    if (typeof Chart === 'undefined') {
+        console.warn('⚠️ Chart.js non chargé');
+        return;
+    }
     
+    console.log('📊 Initialisation du graphique...');
+    
+    // Couleurs pour chaque action
+    const colors = ['#3498db', '#f39c12', '#2ecc71', '#9b59b6', '#e74c3c', '#1abc9c', '#f1c40f', '#95a5a6'];
+    
+    // Créer les datasets
     const datasets = CONFIG.STOCKS.map((stock, index) => ({
         label: stock.name,
-        data: [stock.initialPrice], // ⚠️ AJOUTER UN POINT INITIAL !
-        borderColor: stockColors[index],
-        backgroundColor: stockColors[index] + '20',
+        data: [],
+        borderColor: colors[index],
+        backgroundColor: colors[index] + '20',
         borderWidth: 2,
         fill: false,
-        tension: 0.1,
-        pointRadius: 3,
-        pointHoverRadius: 5,
-        pointBorderWidth: 1,
-        pointBorderColor: '#fff',
-        pointBackgroundColor: stockColors[index]
+        tension: 0.1
     }));
     
     stockChart = new Chart(ctx, {
         type: 'line',
-        data: { 
-            labels: ['Début'], // ⚠️ AJOUTER UN LABEL INITIAL !
-            datasets: datasets 
+        data: {
+            labels: [],
+            datasets: datasets
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
-            interaction: { 
-                intersect: false, 
-                mode: 'index' 
-            },
-            animation: {
-                duration: 0
+            maintainAspectRatio: false, // ⚠️ IMPORTANT : Permet d'utiliser toute la hauteur
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    title: {
+                        display: true,
+                        text: 'Prix (points)',
+                        font: { size: 16 } // ⚠️ Plus gros
+                    },
+                    ticks: {
+                        font: { size: 14 } // ⚠️ Plus lisible
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.1)'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Temps',
+                        font: { size: 16 } // ⚠️ Plus gros
+                    },
+                    ticks: {
+                        font: { size: 12 },
+                        maxTicksLimit: 12 // ⚠️ Plus de points sur l'axe X
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                }
             },
             plugins: {
                 title: {
                     display: true,
                     text: 'Évolution des Cours Boursiers',
-                    color: '#2d3748',
-                    font: { size: 18, weight: 'bold' },
+                    font: { size: 20, weight: 'bold' }, // ⚠️ Titre plus gros
                     padding: 20
                 },
                 legend: {
+                    display: true,
                     position: 'top',
                     labels: {
-                        color: '#2d3748',
-                        font: { size: 12 },
+                        font: { size: 14 }, // ⚠️ Légende plus lisible
                         padding: 15,
                         usePointStyle: true
                     }
                 }
             },
-            scales: {
-                x: {
-                    title: { 
-                        display: true, 
-                        text: 'Temps', 
-                        color: '#4a5568',
-                        font: { size: 14 }
-                    },
-                    grid: { 
-                        color: 'rgba(0, 0, 0, 0.1)',
-                        drawBorder: false
-                    },
-                    ticks: { 
-                        color: '#718096',
-                        maxTicksLimit: 8,
-                        maxRotation: 0
-                    }
+            animation: {
+                duration: 0
+            },
+            elements: {
+                point: {
+                    radius: 4, // ⚠️ Points plus gros
+                    hoverRadius: 8
                 },
-                y: {
-                    title: { 
-                        display: true, 
-                        text: 'Prix (points)', 
-                        color: '#4a5568',
-                        font: { size: 14 }
-                    },
-                    grid: { 
-                        color: 'rgba(0, 0, 0, 0.1)',
-                        drawBorder: false
-                    },
-                    ticks: { 
-                        color: '#718096',
-                        callback: function(value) { 
-                            return value.toFixed(1) + ' pts'; 
-                        }
-                    },
-                    beginAtZero: false,
-                    grace: '5%'
+                line: {
+                    borderWidth: 3 // ⚠️ Lignes plus épaisses
                 }
             }
         }
     });
     
-    console.log('📊 Graphique initialisé avec point initial');
+    console.log('✅ Graphique initialisé (version agrandie)');
 }
 
 function updateChart() {
     if (!stockChart) {
-        console.warn('❌ stockChart non initialisé');
+        console.warn('❌ Graphique non initialisé');
         return;
     }
     
-    console.log('🔧 updateChart appelé');
-    
-    // Vérifier que nous avons des données de stocks
+    // Vérifier qu'on a des données de stocks
     if (!gameState.stocks || Object.keys(gameState.stocks).length === 0) {
-        console.warn('⚠️ Pas de données de stocks pour le graphique');
+        console.warn('⚠️ Pas de données stocks');
         return;
     }
     
-    // ⚠️ CORRECTION FUSEAU HORAIRE : UTC+2 (Europe/Paris)
-    const currentTime = new Date().toLocaleTimeString('fr-FR', {
-        hour: '2-digit', 
+    // Ajouter l'heure actuelle
+    const now = new Date().toLocaleTimeString('fr-FR', {
+        hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
-        timeZone: 'Europe/Paris' // ⚠️ AJOUTER CETTE LIGNE
+        timeZone: 'Europe/Paris'
     });
     
-    // Ajouter le nouveau temps
-    stockChart.data.labels.push(currentTime);
+    stockChart.data.labels.push(now);
     
-    // Mettre à jour chaque dataset avec les prix actuels
-    let hasData = false;
+    // Ajouter les prix actuels
     CONFIG.STOCKS.forEach((stockConfig, index) => {
-        const stockData = gameState.stocks[stockConfig.id];
-        if (stockData && stockChart.data.datasets[index]) {
-            const price = parseFloat(stockData.price);
-            if (!isNaN(price)) {
-                stockChart.data.datasets[index].data.push(price);
-                console.log(`📊 ${stockConfig.name}: ${price.toFixed(2)} pts ajouté`);
-                hasData = true;
-            }
+        const stock = gameState.stocks[stockConfig.id];
+        if (stock) {
+            stockChart.data.datasets[index].data.push(stock.price);
+            console.log(`📊 ${stock.name}: ${stock.price.toFixed(2)} pts ajouté`);
         }
     });
     
-    if (!hasData) {
-        console.warn('⚠️ Aucune donnée ajoutée au graphique');
-        return;
-    }
-    
-    // Limiter à 10 points pour voir les variations plus clairement
-    const maxPoints = 10;
+    // Limiter à 15 points max
+    const maxPoints = 20; // ⚠️ AUGMENTER : 20 au lieu de 15
     if (stockChart.data.labels.length > maxPoints) {
         stockChart.data.labels.shift();
         stockChart.data.datasets.forEach(dataset => {
-            if (dataset.data.length > 0) {
-                dataset.data.shift();
-            }
+            dataset.data.shift();
         });
     }
     
-    // FORCER la mise à jour avec recalcul des échelles
-    try {
-        stockChart.update('none');
-        console.log(`✅ Graphique mis à jour - ${stockChart.data.labels.length} points`);
-        console.log('📊 Derniers prix:', stockChart.data.datasets.map((d, i) => 
-            `${CONFIG.STOCKS[i].name}: ${d.data[d.data.length - 1]?.toFixed(2) || 'N/A'}`
-        ));
-    } catch (error) {
-        console.error('❌ Erreur mise à jour graphique:', error);
-    }
+    // Mettre à jour le graphique
+    stockChart.update('none');
+    console.log(`✅ Graphique mis à jour - ${stockChart.data.labels.length} points`);
+}
+
+// Fonction pour ajouter le point initial au démarrage
+function addInitialChartPoint() {
+    if (!stockChart) return;
+    
+    console.log('🎯 Ajout du point initial au graphique');
+    updateChart();
 }
 
 // ========================
@@ -514,7 +488,8 @@ function startGameLocal() {
     startTimer();
     updateButtons();
     
-    updateChart();
+    // ⚠️ POINT INITIAL au démarrage
+    addInitialChartPoint();
     
     if (gameState.isTestMode) {
         gameState.updateInterval = setInterval(() => {
@@ -522,7 +497,6 @@ function startGameLocal() {
         }, CONFIG.TEST_UPDATE_INTERVAL);
         console.log('🧪 Mode Test: MAJ toutes les 10 secondes');
     } else {
-        // Mode jeu : interval FIXE de 3 minutes
         gameState.updateInterval = setInterval(() => {
             if (gameState.isRunning) {
                 updateStockPrices();
@@ -599,27 +573,25 @@ function updateStockPrices() {
         const totalInvested = gameState.totalInvestments[stockId] || 0;
         
         // NOUVEAU SYSTÈME ÉQUILIBRÉ (plus de baisse possible)
-        const investmentInfluence = Math.min(totalInvested / 500, 0.05); // Réduit l'influence
-        const randomBase = Math.random() - 0.5; // Centré sur 0 (pas de bias positif)
-        const randomVariation = randomBase * 0.2; // Plus de volatilité (-10% à +10%)
+        const investmentInfluence = Math.min(totalInvested / 500, 0.05);
+        const randomBase = Math.random() - 0.5;
+        const randomVariation = randomBase * 0.2;
         
         const currentRatio = stock.price / stock.initialPrice;
         let crashProtection = 0;
         
-        // Protection seulement en cas de crash sévère
         if (currentRatio < 0.3) {
-            crashProtection = 0.05; // Protection forte seulement si < 30%
+            crashProtection = 0.05;
         } else if (currentRatio < 0.5) {
-            crashProtection = 0.02; // Protection modérée si < 50%
+            crashProtection = 0.02;
         }
         
         const finalVariation = investmentInfluence + randomVariation + crashProtection;
         
         let newPrice = stock.price * (1 + finalVariation);
         
-        // Limites plus larges
-        const minPrice = stock.initialPrice * 0.2;  // Peut descendre à 20%
-        const maxPrice = stock.initialPrice * 5;    // Peut monter à 500%
+        const minPrice = stock.initialPrice * 0.2;
+        const maxPrice = stock.initialPrice * 5;
         
         newPrice = Math.max(minPrice, Math.min(maxPrice, newPrice));
         
@@ -631,7 +603,7 @@ function updateStockPrices() {
     });
     
     updateDisplay();
-    updateChart();
+    updateChart(); // ⚠️ REMETTRE cette ligne !
     addToHistory('📊 Cours mis à jour', 'system');
 }
 
@@ -717,7 +689,6 @@ function executeTransactionLocal(teamId, stockId, action, quantity) {
         
         // S'assurer que totalInvestments existe
         if (!gameState.totalInvestments) gameState.totalInvestments = {};
-        gameState.totalInvestments[stockId] = Math.max(0, (gameState.totalInvestments[stockId] || 0) - quantity);
         
         addToHistory(`💰 ${team.name} vend ${quantity} ${stock.name} pour ${totalCost.toFixed(2)} pts`, 'sell');
     }
@@ -1104,8 +1075,7 @@ function setupEventListeners() {
         if (isConnected && socket) {
             socket.emit('forceUpdate');
         } else {
-            updateStockPrices();
-            updateChart();
+            updateStockPrices(); // ⚠️ Cette fonction appelle updateChart() maintenant
         }
     });
     
@@ -1298,7 +1268,12 @@ if (typeof io !== 'undefined') {
         console.log('📋 État reçu du serveur');
         gameState = data;
         updateDisplay();
-        updateChart(); // ⚠️ OBLIGATOIRE : Mettre à jour le graphique
+        
+        // ⚠️ FORCER un premier point avec les prix actuels
+        if (stockChart && stockChart.data.labels.length === 0) {
+            console.log('🎯 Premier point graphique forcé');
+            updateChart();
+        }
     });
     
     socket.on('stockUpdate', (data) => {
