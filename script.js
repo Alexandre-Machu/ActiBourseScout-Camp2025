@@ -1251,3 +1251,93 @@ function testChart() {
 
 // Rendre accessible pour debug
 window.testChart = testChart;
+
+// Test spécifique pour le serveur
+function testServerChart() {
+    console.log('🧪 Test graphique serveur');
+    if (isConnected && socket) {
+        // Forcer 5 mises à jour serveur
+        for (let i = 0; i < 5; i++) {
+            setTimeout(() => {
+                socket.emit('forceUpdate');
+                console.log(`Force update ${i + 1}/5 envoyée au serveur`);
+            }, i * 2000);
+        }
+    } else {
+        console.warn('❌ Pas connecté au serveur');
+    }
+}
+
+// Rendre accessible pour debug
+window.testServerChart = testServerChart;
+
+// Event listeners pour Socket.IO
+if (typeof io !== 'undefined') {
+    socket = io();
+    
+    socket.on('connect', () => {
+        console.log('🔗 Connecté au serveur');
+        isConnected = true;
+        updateConnectionStatus();
+        socket.emit('requestGameState');
+    });
+    
+    socket.on('disconnect', () => {
+        console.log('❌ Déconnecté du serveur');
+        isConnected = false;
+        updateConnectionStatus();
+    });
+    
+    socket.on('gameState', (data) => {
+        console.log('📋 État reçu du serveur');
+        gameState = data;
+        updateDisplay();
+        updateChart(); // ⚠️ OBLIGATOIRE : Mettre à jour le graphique
+    });
+    
+    socket.on('stockUpdate', (data) => {
+        console.log('📈 Mise à jour cours reçue');
+        gameState.stocks = data.stocks;
+        updateDisplay();
+        updateChart(); // ⚠️ OBLIGATOIRE : Mettre à jour le graphique
+        addToHistory('📊 Cours mis à jour', 'system');
+    });
+    
+    socket.on('gameStarted', (data) => {
+        console.log('🚀 Jeu démarré côté serveur');
+        gameState.isRunning = true;
+        gameState.startTime = data.startTime;
+        updateButtons();
+        updateChart(); // ⚠️ Ajouter un point initial
+        addToHistory('🚀 Simulation démarrée', 'system');
+    });
+    
+    socket.on('gamePaused', () => {
+        console.log('⏸️ Jeu mis en pause côté serveur');
+        gameState.isRunning = false;
+        updateButtons();
+        addToHistory('⏸️ Simulation suspendue', 'system');
+    });
+    
+    socket.on('gameReset', () => {
+        console.log('🔄 Jeu réinitialisé côté serveur');
+        gameState.isRunning = false;
+        gameState.startTime = null;
+        
+        // Reset du graphique
+        if (stockChart) {
+            stockChart.data.labels = ['Début'];
+            stockChart.data.datasets.forEach((dataset, index) => {
+                const stockConfig = CONFIG.STOCKS[index];
+                if (stockConfig) {
+                    dataset.data = [stockConfig.initialPrice];
+                }
+            });
+            stockChart.update();
+        }
+        
+        updateButtons();
+        updateDisplay();
+        addToHistory('🔄 Système réinitialisé', 'system');
+    });
+}
