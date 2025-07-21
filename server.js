@@ -11,8 +11,8 @@ const io = socketIo(server);
 const CONFIG = {
     INITIAL_POINTS: 500,
     TEST_UPDATE_INTERVAL: 10000,
-    GAME_MIN_INTERVAL: 300000,
-    GAME_MAX_INTERVAL: 5400000,
+    GAME_MIN_INTERVAL: 300000,  // 5 minutes
+    GAME_MAX_INTERVAL: 1800000, // 30 minutes
     TEAMS: [
         { id: 'alouettes', name: '🦅 Alouettes', emoji: '🦅', color: '#3498db' },
         { id: 'canard', name: '🦆 Canard', emoji: '🦆', color: '#f39c12' },
@@ -97,8 +97,21 @@ function initializeServerGame() {
     
     isInitialized = true;
     console.log('✅ Serveur initialisé');
+    console.log('🎯 Équipes créées:', Object.values(serverGameState.teams).map(t => t.name));
 }
 
+// Calcul de la valeur totale d'une équipe
+function calculateTeamValueServer(team) {
+    let totalValue = team.points;
+    Object.keys(team.portfolio).forEach(stockId => {
+        const quantity = team.portfolio[stockId] || 0;
+        const stockPrice = serverGameState.stocks[stockId]?.price || 0;
+        totalValue += quantity * stockPrice;
+    });
+    return totalValue;
+}
+
+// Mise à jour des prix avec système anti-crash
 function updateStockPricesServer() {
     console.log('📈 MAJ cours serveur');
     
@@ -107,12 +120,30 @@ function updateStockPricesServer() {
         stock.previousPrice = stock.price;
         
         const totalInvested = serverGameState.totalInvestments[stockId] || 0;
-        const investmentInfluence = Math.min(totalInvested / 100, 0.15);
-        const randomVariation = (Math.random() - 0.5) * 0.4;
-        const finalVariation = randomVariation - investmentInfluence;
+        
+        // SYSTÈME ANTI-CRASH avec bias positif
+        const positiveBias = 0.0005;
+        const investmentInfluence = Math.min(totalInvested / 200, 0.1);
+        const randomBase = Math.random() - 0.3;
+        const randomVariation = randomBase * 0.15;
+        
+        const currentRatio = stock.price / stock.initialPrice;
+        let crashProtection = 0;
+        
+        if (currentRatio < 0.6) {
+            crashProtection = 0.02;
+        } else if (currentRatio < 0.8) {
+            crashProtection = 0.01;
+        }
+        
+        const finalVariation = positiveBias + investmentInfluence + randomVariation + crashProtection;
         
         let newPrice = stock.price * (1 + finalVariation);
-        newPrice = Math.max(10, Math.min(stock.initialPrice * 4, newPrice));
+        
+        const minPrice = stock.initialPrice * 0.4;
+        const maxPrice = stock.initialPrice * 3;
+        
+        newPrice = Math.max(minPrice, Math.min(maxPrice, newPrice));
         
         stock.price = Math.round(newPrice * 100) / 100;
         stock.change = stock.price - stock.previousPrice;
@@ -120,7 +151,9 @@ function updateStockPricesServer() {
     });
     
     // Diffuser les mises à jour
+    addToServerHistory('📊 Cours mis à jour', 'system');
     io.emit('stockUpdate', { stocks: serverGameState.stocks });
+    io.emit('gameState', serverGameState);
 }
 
 function addToServerHistory(message, type) {
@@ -151,7 +184,45 @@ function scheduleNextServerUpdate() {
         }
     }, delay);
     
-    console.log(`⏰ Prochaine MAJ serveur dans ${Math.round(delay/1000)}s`);
+    console.log(`⏰ Prochaine MAJ serveur dans ${Math.round(delay/1000)}s (${Math.round(delay/60000)}min)`);
+}
+
+// Validation et limites pour les transactions
+function validateTransaction(teamId, stockId, action, quantity) {
+    const team = serverGameState.teams[teamId];
+    const stock = serverGameState.stocks[stockId];
+    
+    if (!team || !stock || quantity <= 0) {
+        return { valid: false, message: 'Données invalides' };
+    }
+    
+    const totalCost = stock.price * quantity;
+    
+    if (action === 'buy') {
+        const maxQuantity = Math.floor(team.points / stock.price);
+        if (quantity > maxQuantity) {
+            return { 
+                valid: false, 
+                message: `Maximum ${maxQuantity} actions (${team.points.toFixed(2)} pts disponibles)`
+            };
+        }
+        if (team.points < totalCost) {
+            return { 
+                valid: false, 
+                message: `Fonds insuffisants: ${totalCost.toFixed(2)} pts requis`
+            };
+        }
+    } else if (action === 'sell') {
+        const owned = team.portfolio[stockId] || 0;
+        if (quantity > owned) {
+            return { 
+                valid: false, 
+                message: `Maximum ${owned} actions possédées`
+            };
+        }
+    }
+    
+    return { valid: true, totalCost };
 }
 
 // Gestion des connexions Socket.IO
@@ -176,12 +247,15 @@ io.on('connection', (socket) => {
         
         if (serverGameState.isTestMode) {
             updateInterval = setInterval(updateStockPricesServer, CONFIG.TEST_UPDATE_INTERVAL);
+            console.log('🧪 Mode Test activé - MAJ toutes les 10 secondes');
         } else {
             scheduleNextServerUpdate();
+            console.log('🎮 Mode Jeu activé - MAJ aléatoires entre 5-30min');
         }
         
         addToServerHistory('🚀 Simulation lancée', 'system');
         io.emit('gameStarted', { startTime: serverGameState.startTime });
+        io.emit('gameState', serverGameState);
     });
     
     // Pause
@@ -191,6 +265,7 @@ io.on('connection', (socket) => {
         clearServerIntervals();
         addToServerHistory('⏸️ Simulation suspendue', 'system');
         io.emit('gamePaused');
+        io.emit('gameState', serverGameState);
     });
     
     // Reset
@@ -203,44 +278,57 @@ io.on('connection', (socket) => {
         io.emit('gameState', serverGameState);
     });
     
-    // Mise à jour manuelle
+    // Mise à jour manuelle/forcée (même fonction)
     socket.on('manualUpdate', () => {
+        console.log('📊 Mise à jour manuelle demandée');
         updateStockPricesServer();
     });
     
     socket.on('forceUpdate', () => {
+        console.log('⚡ Mise à jour forcée demandée');
         updateStockPricesServer();
     });
     
-    // Transaction
+    // Transaction avec validation complète
     socket.on('transaction', (data) => {
         const { teamId, stockId, action, quantity } = data;
+        
+        console.log(`🔄 Transaction serveur: ${teamId} ${action} ${quantity} ${stockId}`);
+        
+        // Validation complète
+        const validation = validateTransaction(teamId, stockId, action, quantity);
+        if (!validation.valid) {
+            console.log(`❌ Transaction rejetée: ${validation.message}`);
+            socket.emit('transactionError', { message: validation.message });
+            return;
+        }
+        
         const team = serverGameState.teams[teamId];
         const stock = serverGameState.stocks[stockId];
-        
-        if (!team || !stock) return;
-        
-        const totalCost = stock.price * quantity;
+        const totalCost = validation.totalCost;
         
         if (action === 'buy') {
-            if (team.points < totalCost) return;
-            
-            team.points -= totalCost;
+            team.points = Math.round((team.points - totalCost) * 100) / 100;
             team.portfolio[stockId] = (team.portfolio[stockId] || 0) + quantity;
-            serverGameState.totalInvestments[stockId] += quantity;
+            serverGameState.totalInvestments[stockId] = (serverGameState.totalInvestments[stockId] || 0) + quantity;
             
             addToServerHistory(`🛒 ${team.name} achète ${quantity} ${stock.name} pour ${totalCost.toFixed(2)} pts`, 'buy');
+            console.log(`✅ Achat: ${team.name} +${quantity} ${stock.name}`);
             
-        } else {
-            const owned = team.portfolio[stockId] || 0;
-            if (owned < quantity) return;
-            
-            team.points += totalCost;
-            team.portfolio[stockId] -= quantity;
-            serverGameState.totalInvestments[stockId] = Math.max(0, serverGameState.totalInvestments[stockId] - quantity);
+        } else if (action === 'sell') {
+            team.points = Math.round((team.points + totalCost) * 100) / 100;
+            team.portfolio[stockId] = Math.max(0, (team.portfolio[stockId] || 0) - quantity);
+            serverGameState.totalInvestments[stockId] = Math.max(0, (serverGameState.totalInvestments[stockId] || 0) - quantity);
             
             addToServerHistory(`💰 ${team.name} vend ${quantity} ${stock.name} pour ${totalCost.toFixed(2)} pts`, 'sell');
+            console.log(`✅ Vente: ${team.name} -${quantity} ${stock.name}`);
         }
+        
+        // Confirmer la transaction au client
+        socket.emit('transactionSuccess', {
+            message: `Transaction réussie: ${action === 'buy' ? 'Achat' : 'Vente'} de ${quantity} ${stock.name}`,
+            newBalance: team.points
+        });
         
         io.emit('gameState', serverGameState);
     });
@@ -250,11 +338,16 @@ io.on('connection', (socket) => {
         const { teamId, amount } = data;
         const team = serverGameState.teams[teamId];
         
-        if (!team) return;
+        if (!team) {
+            console.log(`❌ Ajustement points échoué: équipe ${teamId} non trouvée`);
+            return;
+        }
         
         team.points = Math.max(0, team.points + amount);
         const symbol = amount > 0 ? '+' : '';
         addToServerHistory(`🎯 ${team.name}: ${symbol}${amount} points`, 'system');
+        
+        console.log(`🎯 Ajustement: ${team.name} ${symbol}${amount} pts (nouveau total: ${team.points.toFixed(2)})`);
         
         io.emit('gameState', serverGameState);
     });
@@ -262,6 +355,34 @@ io.on('connection', (socket) => {
     // Demande d'état
     socket.on('requestGameState', () => {
         socket.emit('gameState', serverGameState);
+    });
+    
+    // Demande des limites de transaction
+    socket.on('getTransactionLimits', (data) => {
+        const { teamId, stockId, action } = data;
+        const team = serverGameState.teams[teamId];
+        const stock = serverGameState.stocks[stockId];
+        
+        if (!team || !stock) return;
+        
+        let maxQuantity = 0;
+        let infoText = '';
+        
+        if (action === 'buy') {
+            maxQuantity = Math.floor(team.points / stock.price);
+            infoText = `💰 Maximum : ${maxQuantity} actions (${team.points.toFixed(2)} pts disponibles)`;
+        } else if (action === 'sell') {
+            maxQuantity = team.portfolio[stockId] || 0;
+            infoText = `📦 Maximum : ${maxQuantity} actions possédées`;
+        }
+        
+        socket.emit('transactionLimits', {
+            maxQuantity,
+            infoText,
+            teamId,
+            stockId,
+            action
+        });
     });
     
     // Déconnexion
@@ -275,10 +396,32 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// Statistiques serveur (route debug)
+app.get('/stats', (req, res) => {
+    const stats = {
+        isRunning: serverGameState.isRunning,
+        startTime: serverGameState.startTime,
+        teamsCount: Object.keys(serverGameState.teams).length,
+        stocksCount: Object.keys(serverGameState.stocks).length,
+        historyCount: serverGameState.history.length,
+        isTestMode: serverGameState.isTestMode,
+        totalInvestments: serverGameState.totalInvestments,
+        teamValues: Object.values(serverGameState.teams).map(team => ({
+            name: team.name,
+            points: team.points,
+            totalValue: calculateTeamValueServer(team),
+            tokens: Math.floor(calculateTeamValueServer(team) / 50)
+        }))
+    };
+    res.json(stats);
+});
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`🚀 ActiBourseScout serveur démarré sur le port ${PORT}`);
     console.log(`🌐 Accès: http://localhost:${PORT}`);
+    console.log(`📊 Stats: http://localhost:${PORT}/stats`);
+    console.log(`⏱️ Mode Test: 10 secondes | Mode Jeu: 5-30 minutes`);
 });
 
 // Gestion propre de l'arrêt
