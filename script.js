@@ -18,9 +18,9 @@ function getCleanGameState() {
 // Configuration de l'application
 const CONFIG = {
     INITIAL_POINTS: 500,
-    TEST_UPDATE_INTERVAL: 10000,
-    GAME_MIN_INTERVAL: 300000,  // 5 minutes
-    GAME_MAX_INTERVAL: 1800000, // 30 minutes
+    TEST_UPDATE_INTERVAL: 10000,    // 10 secondes
+    GAME_MIN_INTERVAL: 180000,      // 3 minutes FIXES (au lieu de 5-30min aléatoires)
+    GAME_MAX_INTERVAL: 180000,      // 3 minutes FIXES
     TEAMS: [
         { id: 'alouettes', name: '🦅 Alouettes', emoji: '🦅', color: '#3498db' },
         { id: 'canard', name: '🦆 Canard', emoji: '🦆', color: '#f39c12' },
@@ -240,9 +240,9 @@ function initializeGame() {
         
         gameState.teams[teamConfig.id] = {
             id: teamConfig.id,
-            name: teamConfig.name,           // NOM COMPLET avec emoji
-            emoji: teamConfig.emoji,         // Emoji seul
-            color: teamConfig.color,         // Couleur
+            name: teamConfig.name,           
+            emoji: teamConfig.emoji,         
+            color: teamConfig.color,         
             points: CONFIG.INITIAL_POINTS,
             portfolio: {}
         };
@@ -252,6 +252,14 @@ function initializeGame() {
             gameState.teams[teamConfig.id].portfolio[stock.id] = 0;
         });
     });
+    
+    // ⚠️ OBLIGATOIRE : Mettre à jour le graphique après l'initialisation
+    setTimeout(() => {
+        if (stockChart) {
+            updateChart();
+            console.log('📊 Graphique mis à jour après initialisation');
+        }
+    }, 100);
     
     console.log('✅ Jeu initialisé');
     console.log('🎯 Équipes créées:', Object.values(gameState.teams).map(t => t.name));
@@ -275,12 +283,12 @@ function initChart() {
     
     const datasets = CONFIG.STOCKS.map((stock, index) => ({
         label: stock.name,
-        data: [],
+        data: [stock.initialPrice], // ⚠️ AJOUTER UN POINT INITIAL !
         borderColor: stockColors[index],
         backgroundColor: stockColors[index] + '20',
         borderWidth: 2,
         fill: false,
-        tension: 0.1, // Réduire la tension pour des courbes moins lisses
+        tension: 0.1,
         pointRadius: 3,
         pointHoverRadius: 5,
         pointBorderWidth: 1,
@@ -291,7 +299,7 @@ function initChart() {
     stockChart = new Chart(ctx, {
         type: 'line',
         data: { 
-            labels: [], 
+            labels: ['Début'], // ⚠️ AJOUTER UN LABEL INITIAL !
             datasets: datasets 
         },
         options: {
@@ -302,7 +310,7 @@ function initChart() {
                 mode: 'index' 
             },
             animation: {
-                duration: 0 // Désactiver les animations pour des mises à jour plus fluides
+                duration: 0
             },
             plugins: {
                 title: {
@@ -357,30 +365,23 @@ function initChart() {
                             return value.toFixed(1) + ' pts'; 
                         }
                     },
-                    // Adapter l'échelle automatiquement
                     beginAtZero: false,
-                    grace: '5%' // Ajouter 5% de marge en haut et en bas
+                    grace: '5%'
                 }
             }
         }
     });
     
-    console.log('📊 Graphique initialisé avec', CONFIG.STOCKS.length, 'datasets');
-    
-    // Ajouter un point initial avec les prix de base
-    if (gameState.stocks && Object.keys(gameState.stocks).length > 0) {
-        updateChart();
-    }
+    console.log('📊 Graphique initialisé avec point initial');
 }
 
 function updateChart() {
-    if (!stockChart) return;
+    if (!stockChart) {
+        console.warn('❌ stockChart non initialisé');
+        return;
+    }
     
-    const currentTime = new Date().toLocaleTimeString('fr-FR', {
-        hour: '2-digit', 
-        minute: '2-digit'
-        // Enlever les secondes pour plus de lisibilité
-    });
+    console.log('🔧 updateChart appelé');
     
     // Vérifier que nous avons des données de stocks
     if (!gameState.stocks || Object.keys(gameState.stocks).length === 0) {
@@ -388,30 +389,36 @@ function updateChart() {
         return;
     }
     
+    const currentTime = new Date().toLocaleTimeString('fr-FR', {
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit' // Remettre les secondes pour voir les changements
+    });
+    
+    // Ajouter le nouveau temps
     stockChart.data.labels.push(currentTime);
     
     // Mettre à jour chaque dataset avec les prix actuels
+    let hasData = false;
     CONFIG.STOCKS.forEach((stockConfig, index) => {
         const stockData = gameState.stocks[stockConfig.id];
         if (stockData && stockChart.data.datasets[index]) {
-            // Vérifier que le prix est valide
             const price = parseFloat(stockData.price);
             if (!isNaN(price)) {
                 stockChart.data.datasets[index].data.push(price);
-                console.log(`📊 Graphique: ${stockConfig.name} = ${price.toFixed(2)} pts`);
-            } else {
-                console.warn(`⚠️ Prix invalide pour ${stockConfig.name}:`, stockData.price);
-                stockChart.data.datasets[index].data.push(stockConfig.initialPrice);
+                console.log(`📊 ${stockConfig.name}: ${price.toFixed(2)} pts ajouté`);
+                hasData = true;
             }
-        } else {
-            // Fallback avec le prix initial
-            console.warn(`⚠️ Données manquantes pour ${stockConfig.name}`);
-            stockChart.data.datasets[index].data.push(stockConfig.initialPrice);
         }
     });
     
-    // Limiter à 20 points pour la lisibilité (au lieu de 15)
-    const maxPoints = 20;
+    if (!hasData) {
+        console.warn('⚠️ Aucune donnée ajoutée au graphique');
+        return;
+    }
+    
+    // Limiter à 10 points pour voir les variations plus clairement
+    const maxPoints = 10;
     if (stockChart.data.labels.length > maxPoints) {
         stockChart.data.labels.shift();
         stockChart.data.datasets.forEach(dataset => {
@@ -421,10 +428,16 @@ function updateChart() {
         });
     }
     
-    // Mise à jour du graphique avec animation douce
-    stockChart.update('none'); // 'none' pour pas d'animation
-    
-    console.log(`📊 Graphique mis à jour avec ${stockChart.data.labels.length} points`);
+    // FORCER la mise à jour avec recalcul des échelles
+    try {
+        stockChart.update('none');
+        console.log(`✅ Graphique mis à jour - ${stockChart.data.labels.length} points`);
+        console.log('📊 Derniers prix:', stockChart.data.datasets.map((d, i) => 
+            `${CONFIG.STOCKS[i].name}: ${d.data[d.data.length - 1]?.toFixed(2) || 'N/A'}`
+        ));
+    } catch (error) {
+        console.error('❌ Erreur mise à jour graphique:', error);
+    }
 }
 
 // ========================
@@ -499,13 +512,21 @@ function startGameLocal() {
     startTimer();
     updateButtons();
     
+    updateChart();
+    
     if (gameState.isTestMode) {
         gameState.updateInterval = setInterval(() => {
             updateStockPrices();
-            updateChart();
         }, CONFIG.TEST_UPDATE_INTERVAL);
+        console.log('🧪 Mode Test: MAJ toutes les 10 secondes');
     } else {
-        scheduleNextUpdate();
+        // Mode jeu : interval FIXE de 3 minutes
+        gameState.updateInterval = setInterval(() => {
+            if (gameState.isRunning) {
+                updateStockPrices();
+            }
+        }, CONFIG.GAME_MIN_INTERVAL);
+        console.log('🎮 Mode Jeu: MAJ toutes les 3 minutes');
     }
     
     addToHistory('🚀 Simulation lancée (local)', 'system');
@@ -544,13 +565,17 @@ function resetGameLocal() {
     initializeGame();
     resetTimer();
     
-    // Reset du graphique
+    // Reset du graphique avec un point initial pour chaque stock
     if (stockChart) {
-        stockChart.data.labels = [];
-        stockChart.data.datasets.forEach(dataset => {
-            dataset.data = [];
+        stockChart.data.labels = ['Début'];
+        stockChart.data.datasets.forEach((dataset, index) => {
+            const stockConfig = CONFIG.STOCKS[index];
+            if (stockConfig) {
+                dataset.data = [stockConfig.initialPrice]; // Remettre le prix initial
+            }
         });
         stockChart.update();
+        console.log('📊 Graphique réinitialisé avec points initiaux');
     }
     
     updateDisplay();
@@ -571,47 +596,40 @@ function updateStockPrices() {
         
         const totalInvested = gameState.totalInvestments[stockId] || 0;
         
-        // NOUVEAU SYSTÈME ANTI-CRASH
-        // 1. Bias positif général (+0.05% par mise à jour)
-        const positiveBias = 0.0005;
+        // NOUVEAU SYSTÈME ÉQUILIBRÉ (plus de baisse possible)
+        const investmentInfluence = Math.min(totalInvested / 500, 0.05); // Réduit l'influence
+        const randomBase = Math.random() - 0.5; // Centré sur 0 (pas de bias positif)
+        const randomVariation = randomBase * 0.2; // Plus de volatilité (-10% à +10%)
         
-        // 2. Influence des investissements (plus d'investissements = plus de hausse)
-        const investmentInfluence = Math.min(totalInvested / 200, 0.1);
-        
-        // 3. Variation aléatoire avec bias positif
-        const randomBase = Math.random() - 0.3; // -0.3 à +0.7 (bias positif)
-        const randomVariation = randomBase * 0.15; // Réduire la volatilité
-        
-        // 4. Protection contre les chutes trop importantes
         const currentRatio = stock.price / stock.initialPrice;
         let crashProtection = 0;
         
-        if (currentRatio < 0.6) {
-            // Si le stock a perdu plus de 40%, forte protection
-            crashProtection = 0.02;
-        } else if (currentRatio < 0.8) {
-            // Si le stock a perdu plus de 20%, protection modérée
-            crashProtection = 0.01;
+        // Protection seulement en cas de crash sévère
+        if (currentRatio < 0.3) {
+            crashProtection = 0.05; // Protection forte seulement si < 30%
+        } else if (currentRatio < 0.5) {
+            crashProtection = 0.02; // Protection modérée si < 50%
         }
         
-        // 5. Calcul final avec tous les facteurs
-        const finalVariation = positiveBias + investmentInfluence + randomVariation + crashProtection;
+        const finalVariation = investmentInfluence + randomVariation + crashProtection;
         
         let newPrice = stock.price * (1 + finalVariation);
         
-        // 6. Limites strictes pour éviter les extrêmes
-        const minPrice = stock.initialPrice * 0.4; // Minimum 40% du prix initial
-        const maxPrice = stock.initialPrice * 3;   // Maximum 300% du prix initial
+        // Limites plus larges
+        const minPrice = stock.initialPrice * 0.2;  // Peut descendre à 20%
+        const maxPrice = stock.initialPrice * 5;    // Peut monter à 500%
         
         newPrice = Math.max(minPrice, Math.min(maxPrice, newPrice));
         
-        // 7. Arrondir pour des prix propres
         stock.price = Math.round(newPrice * 100) / 100;
         stock.change = stock.price - stock.previousPrice;
         stock.changePercent = (stock.change / stock.previousPrice) * 100;
+        
+        console.log(`📊 ${stock.name}: ${stock.previousPrice.toFixed(2)} → ${stock.price.toFixed(2)} (${stock.changePercent.toFixed(2)}%)`);
     });
     
     updateDisplay();
+    updateChart();
     addToHistory('📊 Cours mis à jour', 'system');
 }
 
@@ -621,13 +639,12 @@ function scheduleNextUpdate() {
     
     gameState.updateInterval = setTimeout(() => {
         if (gameState.isRunning && !gameState.isTestMode) {
-            updateStockPrices();
-            updateChart();
-            scheduleNextUpdate();
+            updateStockPrices(); // Cette fonction appelle déjà updateChart()
+            scheduleNextUpdate(); // ⚠️ AJOUTER CETTE LIGNE pour continuer les mises à jour
         }
     }, delay);
     
-    console.log(`⏰ Prochaine MAJ dans ${Math.round(delay/1000)}s`);
+    console.log(`⏰ Prochaine MAJ dans ${Math.round(delay/1000)}s (${Math.round(delay/60000)}min)`);
 }
 
 // ========================
@@ -1210,3 +1227,27 @@ function debugChart() {
 
 // Rendre accessible pour debug
 window.debugChart = debugChart;
+
+// Fonction de test pour ajouter des points au graphique
+function testChart() {
+    console.log('🧪 Test graphique - ajout de 5 points');
+    for (let i = 0; i < 5; i++) {
+        setTimeout(() => {
+            // Modifier les prix légèrement
+            Object.values(gameState.stocks).forEach(stock => {
+                stock.previousPrice = stock.price; // ⚠️ OBLIGATOIRE : Sauvegarder le prix précédent
+                stock.price += (Math.random() - 0.5) * 2;
+                stock.price = Math.max(1, stock.price);
+                stock.change = stock.price - stock.previousPrice; // ⚠️ CALCULER le changement
+                stock.changePercent = (stock.change / stock.previousPrice) * 100; // ⚠️ CALCULER le pourcentage
+            });
+            
+            updateDisplay(); // ⚠️ OBLIGATOIRE : Mettre à jour l'affichage des prix
+            updateChart();   // Puis mettre à jour le graphique
+            console.log(`Test point ${i + 1}/5 ajouté - Prix actuels:`, Object.values(gameState.stocks).map(s => `${s.name}: ${s.price.toFixed(2)}`));
+        }, i * 1000);
+    }
+}
+
+// Rendre accessible pour debug
+window.testChart = testChart;

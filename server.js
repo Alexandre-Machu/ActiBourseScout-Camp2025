@@ -10,9 +10,9 @@ const io = socketIo(server);
 // Configuration
 const CONFIG = {
     INITIAL_POINTS: 500,
-    TEST_UPDATE_INTERVAL: 10000,
-    GAME_MIN_INTERVAL: 300000,  // 5 minutes
-    GAME_MAX_INTERVAL: 1800000, // 30 minutes
+    TEST_UPDATE_INTERVAL: 10000,    // 10 secondes
+    GAME_MIN_INTERVAL: 180000,      // 3 minutes FIXES
+    GAME_MAX_INTERVAL: 180000,      // 3 minutes FIXES
     TEAMS: [
         { id: 'alouettes', name: '🦅 Alouettes', emoji: '🦅', color: '#3498db' },
         { id: 'canard', name: '🦆 Canard', emoji: '🦆', color: '#f39c12' },
@@ -121,27 +121,26 @@ function updateStockPricesServer() {
         
         const totalInvested = serverGameState.totalInvestments[stockId] || 0;
         
-        // SYSTÈME ANTI-CRASH avec bias positif
-        const positiveBias = 0.0005;
-        const investmentInfluence = Math.min(totalInvested / 200, 0.1);
-        const randomBase = Math.random() - 0.3;
-        const randomVariation = randomBase * 0.15;
+        // SYSTÈME ÉQUILIBRÉ pour le serveur
+        const investmentInfluence = Math.min(totalInvested / 500, 0.05);
+        const randomBase = Math.random() - 0.5; // Pas de bias positif
+        const randomVariation = randomBase * 0.2; // Plus de volatilité
         
         const currentRatio = stock.price / stock.initialPrice;
         let crashProtection = 0;
         
-        if (currentRatio < 0.6) {
+        if (currentRatio < 0.3) {
+            crashProtection = 0.05;
+        } else if (currentRatio < 0.5) {
             crashProtection = 0.02;
-        } else if (currentRatio < 0.8) {
-            crashProtection = 0.01;
         }
         
-        const finalVariation = positiveBias + investmentInfluence + randomVariation + crashProtection;
+        const finalVariation = investmentInfluence + randomVariation + crashProtection;
         
         let newPrice = stock.price * (1 + finalVariation);
         
-        const minPrice = stock.initialPrice * 0.4;
-        const maxPrice = stock.initialPrice * 3;
+        const minPrice = stock.initialPrice * 0.2;  // Peut descendre à 20%
+        const maxPrice = stock.initialPrice * 5;    // Peut monter à 500%
         
         newPrice = Math.max(minPrice, Math.min(maxPrice, newPrice));
         
@@ -150,7 +149,6 @@ function updateStockPricesServer() {
         stock.changePercent = (stock.change / stock.previousPrice) * 100;
     });
     
-    // Diffuser les mises à jour
     addToServerHistory('📊 Cours mis à jour', 'system');
     io.emit('stockUpdate', { stocks: serverGameState.stocks });
     io.emit('gameState', serverGameState);
@@ -249,8 +247,9 @@ io.on('connection', (socket) => {
             updateInterval = setInterval(updateStockPricesServer, CONFIG.TEST_UPDATE_INTERVAL);
             console.log('🧪 Mode Test activé - MAJ toutes les 10 secondes');
         } else {
-            scheduleNextServerUpdate();
-            console.log('🎮 Mode Jeu activé - MAJ aléatoires entre 5-30min');
+            // Mode jeu : interval FIXE de 3 minutes  
+            updateInterval = setInterval(updateStockPricesServer, CONFIG.GAME_MIN_INTERVAL);
+            console.log('🎮 Mode Jeu activé - MAJ toutes les 3 minutes');
         }
         
         addToServerHistory('🚀 Simulation lancée', 'system');
@@ -278,12 +277,7 @@ io.on('connection', (socket) => {
         io.emit('gameState', serverGameState);
     });
     
-    // Mise à jour manuelle/forcée (même fonction)
-    socket.on('manualUpdate', () => {
-        console.log('📊 Mise à jour manuelle demandée');
-        updateStockPricesServer();
-    });
-    
+    // Mise à jour forcée (seule fonction gardée)
     socket.on('forceUpdate', () => {
         console.log('⚡ Mise à jour forcée demandée');
         updateStockPricesServer();
