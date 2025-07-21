@@ -389,10 +389,12 @@ function updateChart() {
         return;
     }
     
+    // ⚠️ CORRECTION FUSEAU HORAIRE : UTC+2 (Europe/Paris)
     const currentTime = new Date().toLocaleTimeString('fr-FR', {
         hour: '2-digit', 
         minute: '2-digit',
-        second: '2-digit' // Remettre les secondes pour voir les changements
+        second: '2-digit',
+        timeZone: 'Europe/Paris' // ⚠️ AJOUTER CETTE LIGNE
     });
     
     // Ajouter le nouveau temps
@@ -803,7 +805,11 @@ function updateConnectionStatus() {
 }
 
 function addToHistory(message, type) {
-    const timestamp = new Date().toLocaleTimeString('fr-FR');
+    // ⚠️ CORRECTION FUSEAU HORAIRE
+    const timestamp = new Date().toLocaleTimeString('fr-FR', {
+        timeZone: 'Europe/Paris'
+    });
+    
     gameState.history.unshift({ time: timestamp, message: message, type: type });
     
     if (gameState.history.length > 50) {

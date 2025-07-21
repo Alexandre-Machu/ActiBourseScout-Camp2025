@@ -155,7 +155,11 @@ function updateStockPricesServer() {
 }
 
 function addToServerHistory(message, type) {
-    const timestamp = new Date().toLocaleTimeString('fr-FR');
+    // ⚠️ CORRECTION FUSEAU HORAIRE SERVEUR
+    const timestamp = new Date().toLocaleTimeString('fr-FR', {
+        timeZone: 'Europe/Paris'
+    });
+    
     serverGameState.history.unshift({ time: timestamp, message: message, type: type });
     
     if (serverGameState.history.length > 50) {
