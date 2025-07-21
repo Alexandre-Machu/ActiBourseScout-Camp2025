@@ -457,17 +457,10 @@ body {
     border-top: 1px solid #e2e8f0;
 }
 
-.portfolio-item {
-    display: grid;
-    grid-template-columns: 2fr 1fr 1.5fr;
-    gap: 10px;
-    padding: 8px 0;
+.team-portfolio-value {
+    color: #2563eb;
     font-size: 0.9rem;
-    border-bottom: 1px solid #f7fafc;
-}
-
-.portfolio-item:last-child {
-    border-bottom: none;
+    margin: 0.25rem 0;
 }
 
 /* Formulaire de transaction */

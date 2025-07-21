@@ -861,7 +861,18 @@ function updateTeamsDisplay() {
         teamCard.className = `team-card team-${team.id}`;
         
         const totalValue = calculateTeamValue(team);
-        const tokens = Math.floor(totalValue / 50);
+        
+        // ⚠️ MODIFICATION : Calculer la valeur du portefeuille uniquement
+        let portfolioValue = 0;
+        Object.keys(team.portfolio).forEach(stockId => {
+            const quantity = team.portfolio[stockId] || 0;
+            if (quantity > 0 && gameState.stocks[stockId]) {
+                const stockPrice = gameState.stocks[stockId].price;
+                portfolioValue += quantity * stockPrice;
+            }
+        });
+        
+        const tokens = Math.floor(portfolioValue / 50); // ⚠️ Jetons = valeur portefeuille / 50
         
         let portfolioHTML = '';
         Object.keys(team.portfolio).forEach(stockId => {
@@ -886,6 +897,7 @@ function updateTeamsDisplay() {
         teamCard.innerHTML = `
             <div class="team-name">${team.name}</div>
             <div class="team-points">💰 ${team.points.toFixed(2)} points</div>
+            <div class="team-portfolio-value">📈 Portefeuille: <strong>${portfolioValue.toFixed(2)} pts</strong></div>
             <div class="team-total">📊 Valeur totale: <strong>${totalValue.toFixed(2)} pts</strong></div>
             <div class="team-tokens">🎫 Jetons: <strong>${tokens}</strong></div>
             
@@ -1024,11 +1036,24 @@ function updateLeaderboard() {
     
     leaderboardBody.innerHTML = '';
     
-    const teamsArray = Object.values(gameState.teams).map(team => ({
-        ...team,
-        totalValue: calculateTeamValue(team),
-        tokens: Math.floor(calculateTeamValue(team) / 50)
-    }));
+    const teamsArray = Object.values(gameState.teams).map(team => {
+        // Calculer la valeur du portefeuille
+        let portfolioValue = 0;
+        Object.keys(team.portfolio).forEach(stockId => {
+            const quantity = team.portfolio[stockId] || 0;
+            if (quantity > 0 && gameState.stocks[stockId]) {
+                const stockPrice = gameState.stocks[stockId].price;
+                portfolioValue += quantity * stockPrice;
+            }
+        });
+        
+        return {
+            ...team,
+            totalValue: calculateTeamValue(team),
+            portfolioValue: portfolioValue, // ⚠️ AJOUTER la valeur du portefeuille
+            tokens: Math.floor(portfolioValue / 50) // ⚠️ Jetons = valeur portefeuille / 50
+        };
+    });
     
     teamsArray.sort((a, b) => b.totalValue - a.totalValue);
     
