@@ -1,35 +1,45 @@
 # 🏕️ ActiBourseScout
 
-Simulation de bourse interactive pour activité scout - Camp 2025. Le projet propose **deux interfaces** : une application web standalone et une application Streamlit.
+Simulation de bourse interactive pour activité scout - Camp 2025. Application web moderne avec support serveur optionnel.
 
-## 🌟 Deux Versions Disponibles
+## 🌟 Deux Modes de Fonctionnement
 
-### � **Version Web (Recommandée)**
-Interface HTML/CSS/JavaScript standalone, plus moderne et responsive.
+### 🌐 **Mode Local (Simple)**
+Interface HTML/CSS/JavaScript standalone, fonctionne directement dans le navigateur.
 - **Fichiers** : `index.html`, `script.js`, `style.css`
-- **Avantages** : Aucune installation, fonctionne hors ligne, interface moderne
+- **Avantages** : Aucune installation, fonctionne hors ligne, démarrage instantané
 - **Lancement** : Ouvrir `index.html` dans un navigateur
 
-### 🐍 **Version Streamlit** 
-Application Python avec interface Streamlit.
-- **Fichiers** : `app.py`, `requirements.txt`
-- **Avantages** : Graphiques interactifs, backend Python robuste
-- **Lancement** : `streamlit run app.py`
+### 🚀 **Mode Serveur (Railway)**
+Application Node.js avec synchronisation temps réel entre plusieurs clients.
+- **Fichiers** : `server.js`, `package.json`, `railway.json`
+- **Avantages** : Synchronisation multi-appareils, données centralisées, WebSockets
+- **Déploiement** : Automatique sur Railway via GitHub
 
 ## 🚀 Installation et Lancement
 
-### Version Web (Simple)
+### Mode Local (Recommandé pour tests)
 ```bash
 # Aucune installation requise !
 # Ouvrir directement index.html dans votre navigateur
 ```
 
-### Version Streamlit (Python)
+### Mode Serveur (Railway)
 ```bash
-# Prérequis : Python 3.8+
-pip install -r requirements.txt
-streamlit run app.py
-# Accessible sur http://localhost:8501
+# 1. Cloner le repository
+git clone [votre-repo]
+cd ActiBourseScout-Camp2025
+
+# 2. Installer les dépendances
+npm install
+
+# 3. Démarrer en local
+npm start
+# Accessible sur http://localhost:3000
+
+# 4. Déployer sur Railway
+# - Connecter votre repository GitHub à Railway
+# - Le déploiement se fait automatiquement via railway.json
 ```
 
 ## 🎮 Fonctionnalités
@@ -41,7 +51,8 @@ streamlit run app.py
 - Variations de -20% à +20% par mise à jour
 
 ### 👥 **Gestion d'Équipes**
-- **5 équipes** avec **500 points** de départ chacune
+- **5 équipes** : Alouettes 🦅, Canard 🦆, Panda 🐼, Panthère 🐆, Phaco 🦏
+- **500 points** de départ chacune
 - Calcul automatique de la valeur totale du portefeuille
 - Conversion en jetons : **50 points = 1 jeton**
 
@@ -60,18 +71,17 @@ streamlit run app.py
 - Calcul automatique des jetons gagnés pour le jeu du soir
 - Mise à jour en temps réel des positions
 
-### 📚 **Guide Intégré**
-- Dictionnaire complet des termes financiers
-- Conseils stratégiques pour les équipes
-- Exemples concrets de transactions
-- Interface pédagogique adaptée aux scouts
+### 📊 **Graphiques Interactifs**
+- Évolution des cours en temps réel avec Chart.js
+- Interface responsive adaptée à tous les écrans
+- Animations et transitions fluides
 
 ## 🎯 Utilisation lors de l'Activité
 
 ### Préparation
-1. **Choisir la version** : Web (recommandée) ou Streamlit
+1. **Choisir le mode** : Local (simple) ou Serveur (multi-appareils)
 2. **Mode Test** : Vérifier le fonctionnement avec des variations rapides
-3. **Formation** : Expliquer les règles aux équipes avec le guide intégré
+3. **Formation** : Expliquer les règles aux équipes
 
 ### Pendant l'Activité
 1. **Démarrage** : Basculer en mode Jeu et cliquer sur "Démarrer l'activité"
@@ -86,47 +96,63 @@ streamlit run app.py
 
 ## 🔧 Personnalisation
 
-### Version Web
-Modifiez les paramètres dans `script.js` :
+### Configuration Globale
+Modifiez les paramètres dans `script.js` et `server.js` :
 ```javascript
 const CONFIG = {
     INITIAL_POINTS: 500,        // Points de départ par équipe
-    TEAMS_COUNT: 5,             // Nombre d'équipes
     TEST_UPDATE_INTERVAL: 10000, // Mode test (ms)
     GAME_MIN_INTERVAL: 300000,  // Mode jeu min (ms)
     GAME_MAX_INTERVAL: 5400000, // Mode jeu max (ms)
+    TEAMS: [
+        { id: 'alouettes', name: '🦅 Alouettes', emoji: '🦅', color: '#3498db' },
+        { id: 'canard', name: '🦆 Canard', emoji: '🦆', color: '#f39c12' },
+        { id: 'panda', name: '🐼 Panda', emoji: '🐼', color: '#2ecc71' },
+        { id: 'panthere', name: '🐆 Panthère', emoji: '🐆', color: '#9b59b6' },
+        { id: 'phaco', name: '🦏 Phaco', emoji: '🦏', color: '#e74c3c' }
+    ],
     STOCKS: [
-        { id: 'action', name: '🆕 Nouvelle Action', initialPrice: 50 }
-        // Ajoutez vos propres actions
+        { id: 'montblanc', name: '🏔️ Mont Blanc', initialPrice: 50 },
+        { id: 'monster', name: '👹 Monster', initialPrice: 50 },
+        { id: 'benco', name: '🍫 Benco', initialPrice: 50 },
+        { id: 'opinel', name: '🔪 Opinel', initialPrice: 50 },
+        { id: 'quechua', name: '🏕️ Quechua', initialPrice: 50 },
+        { id: 'redbull', name: '🐂 Red Bull', initialPrice: 50 },
+        { id: 'patagonia', name: '🧗 Patagonia', initialPrice: 50 },
+        { id: 'salomon', name: '🥾 Salomon', initialPrice: 50 }
     ]
 };
 ```
 
-### Version Streamlit
-Modifiez les paramètres dans `app.py` :
-```python
-CONFIG = {
-    'INITIAL_POINTS': 500,          # Points de départ
-    'TEAMS_COUNT': 5,               # Nombre d'équipes
-    'TEST_UPDATE_INTERVAL': 10,     # Mode test (secondes)
-    'GAME_MIN_INTERVAL': 300,       # Mode jeu min (secondes)
-    'GAME_MAX_INTERVAL': 5400,      # Mode jeu max (secondes)
-}
-```
+## 🌐 Déploiement
 
-## 🌐 Déploiement et Hébergement
+### 🚂 **Railway (Recommandé)**
+Railway offre un déploiement automatique et gratuit pour ce projet :
 
-### Version Web (Simple)
-- **Local** : Ouvrir `index.html` directement
-- **GitHub Pages** : Push sur GitHub et activer Pages
-- **Netlify** : Glisser-déposer le dossier sur netlify.com
-- **Aucune configuration serveur** requise !
+#### Configuration automatique
+- Le fichier `railway.json` configure le déploiement
+- Le fichier `package.json` définit les dépendances Node.js
+- Variables d'environnement gérées via l'interface Railway
 
-### Version Streamlit
-- **Streamlit Cloud** : Connexion GitHub gratuite
-- **Heroku** : Déploiement avec Procfile
-- **Railway** : Alternative moderne
-- **Render** : Option gratuite avec auto-déploiement
+#### Étapes de déploiement
+1. **Créer un compte** sur [railway.app](https://railway.app)
+2. **Connecter GitHub** : Lier votre repository
+3. **Déployer** : Railway détecte automatiquement Node.js
+4. **Configurer** : Le domaine est généré automatiquement
+5. **Accéder** : L'application est disponible instantanément
+
+#### Avantages Railway
+- ✅ **Gratuit** pour les projets open source
+- ✅ **Déploiement automatique** via Git
+- ✅ **Domaine HTTPS** inclus
+- ✅ **Surveillance** et logs intégrés
+- ✅ **Scaling automatique**
+
+### Alternatives de déploiement
+- **Local** : `npm start` pour tests en local
+- **Render** : Alternative gratuite similaire
+- **Vercel** : Utilise le fichier `vercel.json` inclus
+- **Heroku** : Support via `package.json`
 
 ## 📱 Compatibilité
 
@@ -142,28 +168,46 @@ CONFIG = {
 - ✅ Safari
 - ✅ Edge
 
-## 🛠️ Fonctionnalités Techniques
+## 🛠️ Architecture Technique
 
-### Version Web
-- **Sauvegarde locale** : Données conservées dans le localStorage
-- **Mise à jour temps réel** : Interface réactive en JavaScript
-- **Responsive design** : CSS Grid et Flexbox
-- **Aucune dépendance** : Fonctionne hors ligne
+### Mode Local
+- **Frontend** : HTML5, CSS3, JavaScript ES6+
+- **Stockage** : localStorage du navigateur
+- **Graphiques** : Chart.js
+- **Design** : CSS Grid et Flexbox responsive
 
-### Version Streamlit
-- **Sauvegarde session** : Données conservées dans la session Streamlit
-- **Graphiques interactifs** : Visualisation avec Plotly
-- **Mise à jour automatique** : Interface réactive Streamlit
-- **Backend Python** : Logique métier robuste
+### Mode Serveur
+- **Backend** : Node.js + Express
+- **Communication** : WebSockets avec Socket.IO
+- **Synchronisation** : État partagé en temps réel
+- **Déploiement** : Railway avec configuration automatique
 
-## 📈 Améliorations Possibles
+### Fichiers clés
+```
+ActiBourseScout-Camp2025/
+├── index.html          # Interface principale
+├── script.js           # Logique frontend + mode local
+├── style.css           # Design responsive
+├── server.js           # Serveur Node.js + Socket.IO
+├── package.json        # Dépendances Node.js
+├── railway.json        # Configuration Railway
+├── vercel.json         # Configuration Vercel (alternative)
+└── README.md          # Documentation
+```
 
-- 📰 **Événements spéciaux** : Nouvelles impactant les cours
-- 💎 **Système de dividendes** : Revenus passifs pour les actionnaires
-- 📊 **Historique graphique** : Courbes d'évolution des cours
-- 📄 **Export PDF** : Rapports de fin d'activité
-- 🌐 **Mode multijoueur** : Connexion réseau entre équipes
-- 🎲 **Actions bonus** : Actions spéciales avec mécaniques uniques
+## 🚀 Avantages par Mode
+
+### 🌐 Mode Local
+- ✅ **Simplicité** : Aucune installation
+- ✅ **Rapidité** : Démarrage instantané
+- ✅ **Hors ligne** : Fonctionne sans internet
+- ✅ **Sécurité** : Données locales uniquement
+
+### 🚂 Mode Railway
+- ✅ **Multi-appareils** : Synchronisation temps réel
+- ✅ **Collaboration** : Plusieurs animateurs
+- ✅ **Persistance** : Données centralisées
+- ✅ **Professionnel** : URL partageable
 
 ## 🎪 Parfait pour les Scouts !
 
@@ -180,15 +224,17 @@ Cette application a été spécialement conçue pour une activité scout, avec :
 - Compétition saine entre équipes
 
 ### 👨‍🏫 **Facilité d'Animation**
-- Guide intégré pour les animateurs
 - Contrôles simples et intuitifs
 - Modes test et jeu adaptés
+- Interface responsive pour tous appareils
 
 ### ⚡ **Flexibilité**
-- Deux versions au choix selon les contraintes
+- Mode local pour simplicité ou mode serveur pour collaboration
 - Personnalisation facile des paramètres
-- Fonctionne sur tous les appareils
+- Déploiement automatique sur Railway
 
 ---
 
 **Développé avec ❤️ pour le Camp Scout 2025**
+
+🚂 **Hébergé gratuitement sur Railway** - Déploiement automatique via GitHub
