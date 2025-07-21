@@ -526,30 +526,48 @@ function executeTransaction() {
 function executeTransactionLocal(teamId, stockId, action, quantity) {
     const team = gameState.teams[teamId];
     const stock = gameState.stocks[stockId];
+    
+    if (!team || !stock) {
+        alert('❌ Équipe ou action non trouvée!');
+        console.error('Transaction échouée:', { teamId, stockId, teamExists: !!team, stockExists: !!stock });
+        return;
+    }
+    
     const totalCost = stock.price * quantity;
+    
+    console.log(`🔄 Transaction: ${team.name} ${action} ${quantity} ${stock.name} à ${stock.price} pts`);
     
     if (action === 'buy') {
         if (team.points < totalCost) {
-            alert(`❌ Fonds insuffisants!\nCoût: ${totalCost.toFixed(2)}\nDisponible: ${team.points.toFixed(2)}`);
+            alert(`❌ Fonds insuffisants!\nCoût: ${totalCost.toFixed(2)} pts\nDisponible: ${team.points.toFixed(2)} pts`);
             return;
         }
         
-        team.points -= totalCost;
+        team.points = Math.round((team.points - totalCost) * 100) / 100;
+        
+        // S'assurer que le portfolio existe
+        if (!team.portfolio) team.portfolio = {};
         team.portfolio[stockId] = (team.portfolio[stockId] || 0) + quantity;
-        gameState.totalInvestments[stockId] += quantity;
+        
+        // S'assurer que totalInvestments existe
+        if (!gameState.totalInvestments) gameState.totalInvestments = {};
+        gameState.totalInvestments[stockId] = (gameState.totalInvestments[stockId] || 0) + quantity;
         
         addToHistory(`🛒 ${team.name} achète ${quantity} ${stock.name} pour ${totalCost.toFixed(2)} pts`, 'buy');
         
-    } else {
+    } else if (action === 'sell') {
         const owned = team.portfolio[stockId] || 0;
         if (owned < quantity) {
-            alert(`❌ Quantité insuffisante!\nDemandé: ${quantity}\nDisponible: ${owned}`);
+            alert(`❌ Quantité insuffisante!\nDemandé: ${quantity}\nPossédé: ${owned}`);
             return;
         }
         
-        team.points += totalCost;
-        team.portfolio[stockId] -= quantity;
-        gameState.totalInvestments[stockId] = Math.max(0, gameState.totalInvestments[stockId] - quantity);
+        team.points = Math.round((team.points + totalCost) * 100) / 100;
+        team.portfolio[stockId] = Math.max(0, (team.portfolio[stockId] || 0) - quantity);
+        
+        // S'assurer que totalInvestments existe
+        if (!gameState.totalInvestments) gameState.totalInvestments = {};
+        gameState.totalInvestments[stockId] = Math.max(0, (gameState.totalInvestments[stockId] || 0) - quantity);
         
         addToHistory(`💰 ${team.name} vend ${quantity} ${stock.name} pour ${totalCost.toFixed(2)} pts`, 'sell');
     }
@@ -558,11 +576,16 @@ function executeTransactionLocal(teamId, stockId, action, quantity) {
 }
 
 function adjustTeamPoints(teamId, amount) {
+    console.log(`🎯 Ajustement points: ${teamId} ${amount > 0 ? '+' : ''}${amount}`);
+    
     if (isConnected && socket) {
         socket.emit('adjustPoints', { teamId, amount });
     } else {
         const team = gameState.teams[teamId];
-        if (!team) return;
+        if (!team) {
+            console.error('Équipe non trouvée:', teamId);
+            return;
+        }
         
         team.points = Math.max(0, team.points + amount);
         const symbol = amount > 0 ? '+' : '';
@@ -760,6 +783,10 @@ function updateTeamsDisplay() {
 
 function updateSelects() {
     const teamSelect = document.getElementById('teamSelect');
+    const stockSelect = document.getElementById('stockSelect');
+    const quantityInput = document.getElementById('quantityInput');
+    const actionSelect = document.getElementById('actionSelect');
+    
     if (teamSelect) {
         const currentTeam = teamSelect.value;
         teamSelect.innerHTML = '<option value="">Sélectionner une équipe</option>';
@@ -773,7 +800,6 @@ function updateSelects() {
         });
     }
     
-    const stockSelect = document.getElementById('stockSelect');
     if (stockSelect) {
         const currentStock = stockSelect.value;
         stockSelect.innerHTML = '<option value="">Sélectionner une action</option>';
@@ -786,7 +812,58 @@ function updateSelects() {
             stockSelect.appendChild(option);
         });
     }
+    
+    // Mettre à jour les limites du champ quantité
+    updateQuantityLimits();
 }
+
+function updateQuantityLimits() {
+    const teamId = document.getElementById('teamSelect').value;
+    const stockId = document.getElementById('stockSelect').value;
+    const action = document.getElementById('actionSelect').value;
+    const quantityInput = document.getElementById('quantityInput');
+    const maxInfo = document.getElementById('maxInfo');
+    
+    if (!teamId || !stockId || !quantityInput) return;
+    
+    const team = gameState.teams[teamId];
+    const stock = gameState.stocks[stockId];
+    
+    if (!team || !stock) return;
+    
+    let maxQuantity = 0;
+    let infoText = '';
+    
+    if (action === 'buy') {
+        maxQuantity = Math.floor(team.points / stock.price);
+        infoText = `💰 Maximum : ${maxQuantity} actions (${team.points.toFixed(2)} pts disponibles)`;
+    } else if (action === 'sell') {
+        maxQuantity = team.portfolio[stockId] || 0;
+        infoText = `📦 Maximum : ${maxQuantity} actions possédées`;
+    }
+    
+    quantityInput.max = maxQuantity;
+    quantityInput.placeholder = `Max: ${maxQuantity}`;
+    
+    // Afficher les infos
+    if (maxInfo) {
+        maxInfo.textContent = infoText;
+        maxInfo.style.color = maxQuantity > 0 ? '#38a169' : '#e53e3e';
+    }
+    
+    // Bouton rapide "Max"
+    const maxBtn = document.getElementById('maxBtn');
+    if (maxBtn) {
+        maxBtn.style.display = maxQuantity > 0 ? 'inline-block' : 'none';
+        maxBtn.onclick = () => {
+            quantityInput.value = maxQuantity;
+        };
+    }
+}
+
+// ========================
+// HISTORIQUE
+// ========================
 
 function updateHistoryDisplay() {
     const historyContainer = document.getElementById('history');
@@ -811,6 +888,10 @@ function updateHistoryDisplay() {
         historyContainer.appendChild(historyItem);
     });
 }
+
+// ========================
+// CLASSEMENT
+// ========================
 
 function updateLeaderboard() {
     const leaderboardBody = document.getElementById('leaderboardBody');
@@ -885,10 +966,108 @@ function setupEventListeners() {
     document.getElementById('executeBtn')?.addEventListener('click', executeTransaction);
     document.getElementById('speedSlider')?.addEventListener('input', updateSpeedMode);
     
+    // Nouveaux event listeners pour le système de quantité
+    document.getElementById('teamSelect')?.addEventListener('change', updateQuantityLimits);
+    document.getElementById('stockSelect')?.addEventListener('change', updateQuantityLimits);
+    document.getElementById('actionSelect')?.addEventListener('change', updateQuantityLimits);
+    
+    document.getElementById('quantityInput')?.addEventListener('input', updateTransactionPreview);
+    document.getElementById('quantitySlider')?.addEventListener('input', (e) => {
+        document.getElementById('quantityInput').value = e.target.value;
+        updateTransactionPreview();
+    });
+    
     updateSpeedMode();
+}
+
+function updateTransactionPreview() {
+    const teamId = document.getElementById('teamSelect').value;
+    const stockId = document.getElementById('stockSelect').value;
+    const action = document.getElementById('actionSelect').value;
+    const quantity = parseInt(document.getElementById('quantityInput').value) || 0;
+    
+    const preview = document.getElementById('transactionPreview');
+    const details = document.getElementById('previewDetails');
+    
+    if (!teamId || !stockId || quantity <= 0 || !preview || !details) {
+        if (preview) preview.style.display = 'none';
+        return;
+    }
+    
+    const team = gameState.teams[teamId];
+    const stock = gameState.stocks[stockId];
+    
+    if (!team || !stock) return;
+    
+    const totalCost = stock.price * quantity;
+    let isValid = true;
+    let statusMessage = '';
+    
+    if (action === 'buy') {
+        isValid = team.points >= totalCost;
+        statusMessage = isValid ? '✅ Transaction possible' : '❌ Fonds insuffisants';
+    } else {
+        const owned = team.portfolio[stockId] || 0;
+        isValid = owned >= quantity;
+        statusMessage = isValid ? '✅ Transaction possible' : '❌ Actions insuffisantes';
+    }
+    
+    details.innerHTML = `
+        <div class="preview-details">
+            <div class="preview-item">
+                <span>Équipe:</span>
+                <strong>${team.name}</strong>
+            </div>
+            <div class="preview-item">
+                <span>Action:</span>
+                <strong>${stock.name}</strong>
+            </div>
+            <div class="preview-item">
+                <span>Type:</span>
+                <strong>${action === 'buy' ? '🛒 Achat' : '💰 Vente'}</strong>
+            </div>
+            <div class="preview-item">
+                <span>Quantité:</span>
+                <strong>${quantity}</strong>
+            </div>
+            <div class="preview-item">
+                <span>Prix unitaire:</span>
+                <strong>${stock.price.toFixed(2)} pts</strong>
+            </div>
+            <div class="preview-item">
+                <span>Coût total:</span>
+                <strong>${totalCost.toFixed(2)} pts</strong>
+            </div>
+            <div class="preview-item" style="grid-column: 1/-1;">
+                <span style="color: ${isValid ? '#38a169' : '#e53e3e'}">${statusMessage}</span>
+            </div>
+        </div>
+    `;
+    
+    preview.style.display = 'block';
+    
+    // Synchroniser le slider
+    const slider = document.getElementById('quantitySlider');
+    if (slider) {
+        slider.value = quantity;
+    }
 }
 
 // Rendre accessible globalement
 window.adjustTeamPoints = adjustTeamPoints;
+
+function debugGameState() {
+    console.log('🔍 DEBUG - État du jeu:');
+    console.log('Teams:', Object.keys(gameState.teams));
+    console.log('Stocks:', Object.keys(gameState.stocks));
+    console.log('Total investments:', gameState.totalInvestments);
+    
+    Object.values(gameState.teams).forEach(team => {
+        console.log(`Team ${team.name}:`, {
+            points: team.points,
+            portfolio: team.portfolio
+        });
+    });
+}
 
 console.log('✅ ActiBourseScout - Version Professionnelle avec Graphique Chargée');

@@ -496,6 +496,8 @@ body {
     background: white;
     transition: all 0.2s ease;
     color: #2d3748;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .form-select:focus, .form-input:focus {
@@ -504,239 +506,114 @@ body {
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
-/* Tableau de classement */
-.leaderboard-section {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    border-radius: 16px;
-    padding: 30px;
-    margin-bottom: 30px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+/* Spécifique pour le champ quantité */
+#quantityInput {
+    min-width: 120px;
 }
 
-.table-container {
-    overflow-x: auto;
+#quantityInput::placeholder {
+    color: #a0aec0;
+    font-style: italic;
 }
 
-.leaderboard-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.95rem;
+/* Contrôle de quantité amélioré */
+.quantity-control {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
-.leaderboard-table th {
-    background: linear-gradient(135deg, #667eea, #764ba2);
+.quantity-input-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.quantity-input-group input {
+    flex: 1;
+}
+
+.btn-max {
+    padding: 8px 12px;
+    background: linear-gradient(135deg, #48bb78, #38a169);
     color: white;
-    padding: 15px 12px;
-    text-align: left;
-    font-weight: 600;
-    border-radius: 0;
-}
-
-.leaderboard-table th:first-child {
-    border-top-left-radius: 10px;
-    border-bottom-left-radius: 10px;
-}
-
-.leaderboard-table th:last-child {
-    border-top-right-radius: 10px;
-    border-bottom-right-radius: 10px;
-}
-
-.leaderboard-table td {
-    padding: 12px;
-    border-bottom: 1px solid #e2e8f0;
-    color: #2d3748;
-}
-
-.leaderboard-table tr:hover {
-    background: #f7fafc;
-}
-
-.position-medal {
-    text-align: center;
-    font-size: 1.2rem;
-    font-weight: 700;
-}
-
-.position-1 {
-    background: linear-gradient(135deg, #ffd700, #ffed4e);
-    color: #744210;
-}
-
-.position-2 {
-    background: linear-gradient(135deg, #c0c0c0, #e5e7eb);
-    color: #374151;
-}
-
-.position-3 {
-    background: linear-gradient(135deg, #cd7f32, #92400e);
-    color: white;
-}
-
-/* Historique */
-.history-section {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    border-radius: 16px;
-    padding: 30px;
-    margin-bottom: 30px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.history-container {
-    max-height: 400px;
-    overflow-y: auto;
-    padding-right: 10px;
-}
-
-.history-item {
-    padding: 15px;
-    margin-bottom: 10px;
-    border-radius: 10px;
-    border-left: 4px solid;
-    background: #f7fafc;
-    transition: all 0.2s ease;
-}
-
-.history-item:hover {
-    background: #edf2f7;
-    transform: translateX(2px);
-}
-
-.buy-transaction {
-    border-left-color: #48bb78;
-    background: rgba(72, 187, 120, 0.05);
-}
-
-.sell-transaction {
-    border-left-color: #f56565;
-    background: rgba(245, 101, 101, 0.05);
-}
-
-.system-transaction {
-    border-left-color: #667eea;
-    background: rgba(102, 126, 234, 0.05);
-}
-
-.history-time {
+    border: none;
+    border-radius: 6px;
     font-size: 0.8rem;
-    color: #718096;
     font-weight: 600;
-    margin-bottom: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 50px;
 }
 
-.history-details {
-    color: #2d3748;
-    font-weight: 500;
+.btn-max:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(72, 187, 120, 0.3);
 }
 
-/* Section graphique */
-.chart-section {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    border-radius: 16px;
-    padding: 30px;
-    margin-bottom: 40px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+.quantity-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
-.chart-container {
-    position: relative;
-    height: 400px;
+.max-info {
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 8px 12px;
+    background: #f7fafc;
+    border-radius: 6px;
+    text-align: center;
+}
+
+.quantity-slider {
     width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: #e2e8f0;
+    outline: none;
+    cursor: pointer;
+}
+
+.quantity-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* Aperçu de transaction */
+.transaction-preview {
     margin-top: 20px;
-    background: white;
-    border-radius: 12px;
     padding: 20px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+    background: #f7fafc;
+    border-radius: 12px;
+    border-left: 4px solid #667eea;
 }
 
-/* Espacement entre sections */
-.section {
-    margin-bottom: 40px;
+.preview-content h4 {
+    color: #2d3748;
+    margin-bottom: 15px;
+    font-weight: 600;
 }
 
-/* Responsive pour graphique */
-@media (max-width: 768px) {
-    .chart-container {
-        height: 300px;
-        padding: 15px;
-    }
+.preview-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    font-size: 0.9rem;
 }
 
-/* Responsive design */
-@media (max-width: 768px) {
-    .container {
-        padding: 15px;
-    }
-    
-    .header {
-        flex-direction: column;
-        gap: 20px;
-        text-align: center;
-    }
-    
-    .title-section h1 {
-        font-size: 2rem;
-    }
-    
-    .control-buttons {
-        justify-content: center;
-    }
-    
-    .btn {
-        flex: 1;
-        min-width: 120px;
-        justify-content: center;
-    }
-    
-    .stocks-grid, .teams-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .transaction-form {
-        grid-template-columns: 1fr;
-    }
-    
-    .team-controls {
-        gap: 6px;
-    }
-    
-    .btn-mini {
-        flex: 1;
-        min-width: 40px;
-        padding: 10px 8px;
-        font-size: 0.75em;
-    }
-    
-    .status-info {
-        grid-template-columns: 1fr;
-    }
-}
-
-@media (max-width: 480px) {
-    section {
-        padding: 20px;
-        margin: 15px 0;
-    }
-    
-    .stock-price {
-        font-size: 1.4em;
-    }
-    
-    .team-name {
-        font-size: 1.2em;
-    }
-    
-    .leaderboard-table th,
-    .leaderboard-table td {
-        padding: 10px 12px;
-        font-size: 0.85em;
-    }
+.preview-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: white;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 /* Animations */
@@ -758,23 +635,278 @@ body {
     animation: fadeIn 0.5s ease-out;
 }
 
-/* Scrollbar personnalisée */
+/* ==============================
+   CLASSEMENT - CSS CORRIGÉ
+   ============================== */
+
+.leaderboard-section {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 30px;
+    margin-bottom: 30px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.table-container {
+    overflow-x: auto;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+}
+
+.leaderboard-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    font-size: 1rem;
+}
+
+.leaderboard-table thead {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+}
+
+.leaderboard-table th {
+    padding: 18px 20px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 1rem;
+    letter-spacing: 0.5px;
+    border: none;
+}
+
+.leaderboard-table td {
+    padding: 16px 20px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #2d3748;
+    font-weight: 500;
+    vertical-align: middle;
+}
+
+.leaderboard-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.leaderboard-table tbody tr {
+    transition: all 0.2s ease;
+}
+
+.leaderboard-table tbody tr:hover {
+    background: #f8fafc;
+    transform: scale(1.01);
+}
+
+/* Médailles et positions */
+.position-medal {
+    font-size: 1.5rem;
+    font-weight: bold;
+    text-align: center;
+    width: 80px;
+}
+
+.position-1 {
+    background: linear-gradient(135deg, #ffd700, #ffed4e) !important;
+    color: #744210 !important;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+}
+
+.position-2 {
+    background: linear-gradient(135deg, #c0c0c0, #e2e8f0) !important;
+    color: #4a5568 !important;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(192, 192, 192, 0.3);
+}
+
+.position-3 {
+    background: linear-gradient(135deg, #cd7f32, #d69e2e) !important;
+    color: #744210 !important;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(205, 127, 50, 0.3);
+}
+
+/* Responsive pour le tableau */
+@media (max-width: 768px) {
+    .leaderboard-table {
+        font-size: 0.9rem;
+    }
+    
+    .leaderboard-table th,
+    .leaderboard-table td {
+        padding: 12px 15px;
+    }
+    
+    .position-medal {
+        font-size: 1.2rem;
+        width: 60px;
+    }
+}
+
+/* ==============================
+   HISTORIQUE - CSS CORRIGÉ
+   ============================== */
+
+.history-section {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 30px;
+    margin-bottom: 30px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.history-container {
+    max-height: 400px;
+    overflow-y: auto;
+    background: #f8fafc;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #e2e8f0;
+}
+
+.history-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    background: white;
+    border-radius: 8px;
+    border-left: 4px solid #e2e8f0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+    font-size: 0.95rem;
+}
+
+.history-item:last-child {
+    margin-bottom: 0;
+}
+
+.history-item:hover {
+    transform: translateX(4px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.history-time {
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+    color: #4a5568;
+    background: #f1f5f9;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    min-width: 80px;
+    text-align: center;
+}
+
+.history-details {
+    flex: 1;
+    color: #2d3748;
+    font-weight: 500;
+}
+
+/* Types de transactions avec couleurs */
+.buy-transaction {
+    border-left-color: #48bb78 !important;
+    background: rgba(72, 187, 120, 0.05);
+}
+
+.buy-transaction .history-details {
+    color: #2f855a;
+}
+
+.sell-transaction {
+    border-left-color: #ed8936 !important;
+    background: rgba(237, 137, 54, 0.05);
+}
+
+.sell-transaction .history-details {
+    color: #c05621;
+}
+
+.system-transaction {
+    border-left-color: #667eea !important;
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.system-transaction .history-details {
+    color: #553c9a;
+    font-weight: 600;
+}
+
+/* Message d'historique vide */
+.history-container:empty::before {
+    content: "📭 Aucune transaction pour le moment";
+    display: block;
+    text-align: center;
+    color: #a0aec0;
+    font-style: italic;
+    padding: 40px 20px;
+}
+
+/* Scrollbar personnalisée pour l'historique */
 .history-container::-webkit-scrollbar {
-    width: 6px;
+    width: 8px;
 }
 
 .history-container::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 3px;
+    background: #f1f5f9;
+    border-radius: 4px;
 }
 
 .history-container::-webkit-scrollbar-thumb {
     background: linear-gradient(135deg, #667eea, #764ba2);
-    border-radius: 3px;
+    border-radius: 4px;
+    border: 1px solid #f1f5f9;
 }
 
 .history-container::-webkit-scrollbar-thumb:hover {
     background: linear-gradient(135deg, #764ba2, #667eea);
+}
+
+/* Animation d'entrée pour les nouveaux éléments */
+@keyframes slideInFromLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.history-item {
+    animation: slideInFromLeft 0.3s ease-out;
+}
+
+/* Responsive pour l'historique */
+@media (max-width: 768px) {
+    .history-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 15px;
+    }
+    
+    .history-time {
+        align-self: flex-end;
+        font-size: 0.8rem;
+    }
+    
+    .history-details {
+        font-size: 0.9rem;
+        line-height: 1.4;
+    }
+    
+    .history-container {
+        max-height: 300px;
+        padding: 15px;
+    }
 }
 
 /* Focus amélioré */

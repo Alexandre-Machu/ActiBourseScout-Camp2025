@@ -98,9 +98,28 @@
                     <option value="sell">💰 Vendre</option>
                 </select>
                 
-                <input type="number" id="quantityInput" class="form-input" placeholder="Quantité" min="1">
+                <div class="quantity-control">
+                    <div class="quantity-input-group">
+                        <input type="number" id="quantityInput" class="form-input" 
+                               placeholder="Quantité" min="1" max="1000" step="1" value="">
+                        <button type="button" id="maxBtn" class="btn-max" style="display: none;">MAX</button>
+                    </div>
+                    
+                    <div class="quantity-info">
+                        <div id="maxInfo" class="max-info">Sélectionnez une équipe et une action</div>
+                        <input type="range" id="quantitySlider" class="quantity-slider" 
+                               min="0" max="100" value="0" style="display: none;">
+                    </div>
+                </div>
                 
                 <button id="executeBtn" class="btn btn-execute">✅ Exécuter</button>
+            </div>
+            
+            <div class="transaction-preview" id="transactionPreview" style="display: none;">
+                <div class="preview-content">
+                    <h4>📋 Aperçu de la transaction</h4>
+                    <div id="previewDetails"></div>
+                </div>
             </div>
         </section>
 
